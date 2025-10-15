@@ -8,9 +8,9 @@
 
 ### Background Information
 
-Distributed key-value stores are a fundamental component of modern cloud and data-intensive systems. They provide scalable, fault-tolerant, and low-latency data access for large-scale applications such as web services, machine learning platforms, and cloud control planes. Classical systems such as Amazon’s Dynamo (DeCandia et al., SOSP 2007)**, **Cassandra, and Etcd demonstrate different trade-offs between consistency, availability, and partition tolerance (CAP theorem).
+Distributed key-value stores are a fundamental component of modern cloud and data-intensive systems. They provide scalable, fault-tolerant, and low-latency data access for large-scale applications such as web services, machine learning platforms, and cloud control planes. Classical systems such as Amazon’s Dynamo (DeCandia et al., SOSP 2007), Cassandra, and Etcd demonstrate different trade-offs between consistency, availability, and partition tolerance (CAP theorem).
 
-Among them, Dynamo stands out as a pioneering design that prioritizes high availability and eventual consistency through techniques such as consistent hashing**, **replication**, **vector clocks for versioning**, **quorum-based read/write operations, and gossip-based membership management. Dynamo’s decentralized and leaderless architecture has profoundly influenced subsequent distributed storage systems, forming the conceptual foundation for many modern NoSQL databases and cloud-native infrastructures.
+Among them, Dynamo stands out as a pioneering design that prioritizes high availability and eventual consistency through techniques such as consistent hashing, replication, vector clocks for versioning, quorum-based read/write operations, and gossip-based membership management. Dynamo’s decentralized and leaderless architecture has profoundly influenced subsequent distributed storage systems, forming the conceptual foundation for many modern NoSQL databases and cloud-native infrastructures.
 
 ### Topic Description
 
