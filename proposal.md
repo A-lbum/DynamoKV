@@ -14,7 +14,7 @@ Among them, Dynamo stands out as a pioneering design that prioritizes high avail
 
 ### Topic Description
 
-In this project, we aim to design and implement a Dynamo-inspired distributed key-value store that emphasizes scalability, availability, and elasticity. Our KV store will feature partitioned data storage (consistent hashing), replication for fault tolerance, and quorum-based read/write operations to achieve eventual consistency without relying on a central leader. To further enhance adaptability, the system will support dynamic node join and leave operations (elastic scaling) while maintaining consistent metadata through gossip and hinted handoff mechanisms. The final prototype will demonstrate the system’s behavior under node failure, recovery, and workload scaling scenarios.
+In this project, we aim to design and implement a Dynamo-inspired distributed key-value store that emphasizes scalability, availability, and elasticity. Our KV store will feature partitioned data storage (consistent hashing), replication for fault tolerance, and quorum-based read/write operations to achieve eventual consistency without relying on a central leader. To further enhance adaptability, the system will support dynamic node join and leave operations (elastic scaling) while maintaining consistent metadata through gossip and hinted handoff mechanisms. 
 
 The key features of our system and the corresponding design objectives are summarized as follows:
 
@@ -24,3 +24,4 @@ The key features of our system and the corresponding design objectives are summa
 - Dynamic node join and leave operations (elastic scaling) → implements system elasticity and scaling
 - Gossip and hinted handoff mechanisms → implements consistent metadata maintenance
 
+The final prototype will demonstrate the system’s behavior under node failure, recovery, and workload scaling scenarios.
