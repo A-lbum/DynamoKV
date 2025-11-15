@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/llllleeeewwwiis/standalone/kv/config"
 	"github.com/llllleeeewwwiis/standalone/kv/storage"
@@ -345,5 +348,174 @@ func TestIterWithRawDelete1(t *testing.T) {
 		key := item.Key()
 		assert.Equal(t, expectedKeys[i], key)
 		i++
+	}
+}
+
+func TestRawPutGetDelete1(t *testing.T) {
+	conf := config.NewTestConfig()
+	s := standalone_storage.NewStandAloneStorage(conf)
+	s.Start()
+	server := NewServer(s)
+	defer cleanUpTestData(conf)
+	defer s.Stop()
+
+	cf := engine_util.CfDefault
+	key := []byte("testkey")
+	value := []byte("testvalue")
+
+	// 1. Test PUT
+	putReq := &rawkv.RawPutRequest{
+		Key:   key,
+		Value: value,
+		Cf:    cf,
+	}
+	_, err := server.RawPut(nil, putReq)
+	assert.Nil(t, err)
+	t.Logf("PUT operation succeeded for key=%s", key)
+
+	// 2. Test GET
+	getReq := &rawkv.RawGetRequest{
+		Key: key,
+		Cf:  cf,
+	}
+	getResp, err := server.RawGet(nil, getReq)
+	assert.Nil(t, err)
+	assert.Equal(t, value, getResp.Value)
+	t.Logf("GET operation returned expected value for key=%s", key)
+
+	// 3. Test DELETE
+	delReq := &rawkv.RawDeleteRequest{
+		Key: key,
+		Cf:  cf,
+	}
+	_, err = server.RawDelete(nil, delReq)
+	assert.Nil(t, err)
+	t.Logf("DELETE operation succeeded for key=%s", key)
+
+	// 4. Confirm GET after DELETE
+	getRespAfterDel, err := server.RawGet(nil, getReq)
+	assert.Nil(t, err)
+	assert.True(t, getRespAfterDel.NotFound)
+	t.Logf("GET after DELETE confirmed key=%s is not found", key)
+}
+
+func TestConcurrentPutGetDelete1(t *testing.T) {
+	conf := config.NewTestConfig()
+	s := standalone_storage.NewStandAloneStorage(conf)
+	s.Start()
+	server := NewServer(s)
+	defer cleanUpTestData(conf)
+	defer s.Stop()
+
+	cf := engine_util.CfDefault
+	numKeys := 50
+	var wg sync.WaitGroup
+
+	// 并发 PUT
+	for i := 0; i < numKeys; i++ {
+		wg.Add(1)
+		go func(k int) {
+			defer wg.Done()
+			key := []byte(fmt.Sprintf("key-%d", k))
+			value := []byte(fmt.Sprintf("val-%d", k))
+			req := &rawkv.RawPutRequest{Key: key, Value: value, Cf: cf}
+			_, err := server.RawPut(nil, req)
+			assert.Nil(t, err)
+			t.Logf("PUT %s = %s", key, value)
+		}(i)
+	}
+	wg.Wait()
+
+	// 并发 GET
+	for i := 0; i < numKeys; i++ {
+		wg.Add(1)
+		go func(k int) {
+			defer wg.Done()
+			key := []byte(fmt.Sprintf("key-%d", k))
+			req := &rawkv.RawGetRequest{Key: key, Cf: cf}
+			resp, err := server.RawGet(nil, req)
+			assert.Nil(t, err)
+			assert.Equal(t, []byte(fmt.Sprintf("val-%d", k)), resp.Value)
+			t.Logf("GET %s = %s", key, resp.Value)
+		}(i)
+	}
+	wg.Wait()
+
+	// 并发 DELETE
+	for i := 0; i < numKeys; i++ {
+		wg.Add(1)
+		go func(k int) {
+			defer wg.Done()
+			key := []byte(fmt.Sprintf("key-%d", k))
+			req := &rawkv.RawDeleteRequest{Key: key, Cf: cf}
+			_, err := server.RawDelete(nil, req)
+			assert.Nil(t, err)
+			t.Logf("DELETE %s", key)
+		}(i)
+	}
+	wg.Wait()
+
+	// 检查 DELETE 是否成功
+	for i := 0; i < numKeys; i++ {
+		key := []byte(fmt.Sprintf("key-%d", i))
+		req := &rawkv.RawGetRequest{Key: key, Cf: cf}
+		resp, err := server.RawGet(nil, req)
+		assert.Nil(t, err)
+		assert.True(t, resp.NotFound)
+	}
+}
+
+func TestBasicPerformanceScaling1(t *testing.T) {
+	conf := config.NewTestConfig()
+	s := standalone_storage.NewStandAloneStorage(conf)
+	s.Start()
+	server := NewServer(s)
+	defer cleanUpTestData(conf)
+	defer s.Stop()
+
+	cf := engine_util.CfDefault
+	nValues := []int{100, 1000, 10000, 100000, 1000000} // 不同规模
+	fmt.Printf("| n | PUT (ms) | GET (ms) | DELETE (ms) |\n")
+	fmt.Printf("|---|----------|----------|-------------|\n")
+
+	for _, n := range nValues {
+		// 生成测试数据
+		keys := make([][]byte, n)
+		values := make([][]byte, n)
+		for i := 0; i < n; i++ {
+			keys[i] = []byte(fmt.Sprintf("key-%d", i))
+			values[i] = []byte(fmt.Sprintf("val-%d", i))
+		}
+
+		// PUT
+		start := time.Now()
+		for i := 0; i < n; i++ {
+			req := &rawkv.RawPutRequest{Key: keys[i], Value: values[i], Cf: cf}
+			_, err := server.RawPut(nil, req)
+			assert.Nil(t, err)
+		}
+		putTime := time.Since(start).Milliseconds()
+
+		// GET
+		start = time.Now()
+		for i := 0; i < n; i++ {
+			req := &rawkv.RawGetRequest{Key: keys[i], Cf: cf}
+			resp, err := server.RawGet(nil, req)
+			assert.Nil(t, err)
+			assert.Equal(t, values[i], resp.Value)
+		}
+		getTime := time.Since(start).Milliseconds()
+
+		// DELETE
+		start = time.Now()
+		for i := 0; i < n; i++ {
+			req := &rawkv.RawDeleteRequest{Key: keys[i], Cf: cf}
+			_, err := server.RawDelete(nil, req)
+			assert.Nil(t, err)
+		}
+		delTime := time.Since(start).Milliseconds()
+
+		// 输出表格行
+		fmt.Printf("| %d | %d | %d | %d |\n", n, putTime, getTime, delTime)
 	}
 }
