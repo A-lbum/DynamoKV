@@ -3,13 +3,13 @@ package server
 import (
 	"context"
 
-	"github.com/pingcap-incubator/tinykv/kv/storage"
-	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	"github.com/llllleeeewwwiis/standalone/kv/storage"
+	"github.com/llllleeeewwwiis/standalone/proto/pkg/rawkv"
 )
 
 // ------------------ RawGet ------------------
-func (server *Server) RawGet(ctx context.Context, req *kvrpcpb.RawGetRequest) (*kvrpcpb.RawGetResponse, error) {
-	reader, err := server.storage.Reader(nil)
+func (server *Server) RawGet(ctx context.Context, req *rawkv.RawGetRequest) (*rawkv.RawGetResponse, error) {
+	reader, err := server.storage.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -17,13 +17,13 @@ func (server *Server) RawGet(ctx context.Context, req *kvrpcpb.RawGetRequest) (*
 
 	val, err := reader.GetCF(req.Cf, req.Key)
 	if err != nil || val == nil {
-		return &kvrpcpb.RawGetResponse{NotFound: true}, nil
+		return &rawkv.RawGetResponse{NotFound: true}, nil
 	}
-	return &kvrpcpb.RawGetResponse{Value: val}, nil
+	return &rawkv.RawGetResponse{Value: val}, nil
 }
 
 // ------------------ RawPut ------------------
-func (server *Server) RawPut(ctx context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
+func (server *Server) RawPut(ctx context.Context, req *rawkv.RawPutRequest) (*rawkv.RawPutResponse, error) {
 	batch := []storage.Modify{
 		{
 			Data: storage.Put{
@@ -33,14 +33,14 @@ func (server *Server) RawPut(ctx context.Context, req *kvrpcpb.RawPutRequest) (*
 			},
 		},
 	}
-	if err := server.storage.Write(nil, batch); err != nil {
+	if err := server.storage.Write(batch); err != nil {
 		return nil, err
 	}
-	return &kvrpcpb.RawPutResponse{}, nil
+	return &rawkv.RawPutResponse{}, nil
 }
 
 // ------------------ RawDelete ------------------
-func (server *Server) RawDelete(ctx context.Context, req *kvrpcpb.RawDeleteRequest) (*kvrpcpb.RawDeleteResponse, error) {
+func (server *Server) RawDelete(ctx context.Context, req *rawkv.RawDeleteRequest) (*rawkv.RawDeleteResponse, error) {
 	batch := []storage.Modify{
 		{
 			Data: storage.Delete{
@@ -49,15 +49,15 @@ func (server *Server) RawDelete(ctx context.Context, req *kvrpcpb.RawDeleteReque
 			},
 		},
 	}
-	if err := server.storage.Write(nil, batch); err != nil {
+	if err := server.storage.Write(batch); err != nil {
 		return nil, err
 	}
-	return &kvrpcpb.RawDeleteResponse{}, nil
+	return &rawkv.RawDeleteResponse{}, nil
 }
 
 // ------------------ RawScan ------------------
-func (server *Server) RawScan(ctx context.Context, req *kvrpcpb.RawScanRequest) (*kvrpcpb.RawScanResponse, error) {
-	reader, err := server.storage.Reader(nil)
+func (server *Server) RawScan(ctx context.Context, req *rawkv.RawScanRequest) (*rawkv.RawScanResponse, error) {
+	reader, err := server.storage.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -66,16 +66,16 @@ func (server *Server) RawScan(ctx context.Context, req *kvrpcpb.RawScanRequest) 
 	it := reader.IterCF(req.Cf)
 	defer it.Close()
 
-	var kvs []*kvrpcpb.KvPair
+	var kvs []*rawkv.KvPair
 	for it.Seek(req.StartKey); it.Valid() && len(kvs) < int(req.Limit); it.Next() {
 		item := it.Item()
 		key := item.KeyCopy(nil)
 		value, _ := item.ValueCopy(nil)
-		kvs = append(kvs, &kvrpcpb.KvPair{
+		kvs = append(kvs, &rawkv.KvPair{
 			Key:   key,
 			Value: value,
 		})
 	}
 
-	return &kvrpcpb.RawScanResponse{Kvs: kvs}, nil
+	return &rawkv.RawScanResponse{Kvs: kvs}, nil
 }

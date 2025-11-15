@@ -8,7 +8,7 @@ import (
 	"github.com/llllleeeewwwiis/standalone/kv/config"
 	"github.com/llllleeeewwwiis/standalone/kv/server"
 	"github.com/llllleeeewwwiis/standalone/kv/storage/standalone_storage"
-	"github.com/llllleeeewwwiis/standalone/proto/rawkv"
+	"github.com/llllleeeewwwiis/standalone/proto/pkg/rawkv"
 
 	"google.golang.org/grpc"
 )

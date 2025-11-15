@@ -4,16 +4,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pingcap-incubator/tinykv/kv/config"
-	"github.com/pingcap-incubator/tinykv/kv/storage"
-	"github.com/pingcap-incubator/tinykv/kv/storage/standalone_storage"
-	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
-	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	"github.com/llllleeeewwwiis/standalone/kv/config"
+	"github.com/llllleeeewwwiis/standalone/kv/storage"
+	"github.com/llllleeeewwwiis/standalone/kv/storage/standalone_storage"
+	"github.com/llllleeeewwwiis/standalone/proto/pkg/rawkv"
+	"github.com/llllleeeewwwiis/standalone/util/engine_util"
 	"github.com/stretchr/testify/assert"
 )
 
 func Set(s *standalone_storage.StandAloneStorage, cf string, key []byte, value []byte) error {
-	return s.Write(nil, []storage.Modify{
+	return s.Write([]storage.Modify{
 		{
 			Data: storage.Put{
 				Cf:    cf,
@@ -25,7 +25,7 @@ func Set(s *standalone_storage.StandAloneStorage, cf string, key []byte, value [
 }
 
 func Get(s *standalone_storage.StandAloneStorage, cf string, key []byte) ([]byte, error) {
-	reader, err := s.Reader(nil)
+	reader, err := s.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func Get(s *standalone_storage.StandAloneStorage, cf string, key []byte) ([]byte
 }
 
 func Iter(s *standalone_storage.StandAloneStorage, cf string) (engine_util.DBIterator, error) {
-	reader, err := s.Reader(nil)
+	reader, err := s.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func TestRawGet1(t *testing.T) {
 	cf := engine_util.CfDefault
 	Set(s, cf, []byte{99}, []byte{42})
 
-	req := &kvrpcpb.RawGetRequest{
+	req := &rawkv.RawGetRequest{
 		Key: []byte{99},
 		Cf:  cf,
 	}
@@ -76,7 +76,7 @@ func TestRawGetNotFound1(t *testing.T) {
 	defer s.Stop()
 
 	cf := engine_util.CfDefault
-	req := &kvrpcpb.RawGetRequest{
+	req := &rawkv.RawGetRequest{
 		Key: []byte{99},
 		Cf:  cf,
 	}
@@ -94,7 +94,7 @@ func TestRawPut1(t *testing.T) {
 	defer s.Stop()
 
 	cf := engine_util.CfDefault
-	req := &kvrpcpb.RawPutRequest{
+	req := &rawkv.RawPutRequest{
 		Key:   []byte{99},
 		Value: []byte{42},
 		Cf:    cf,
@@ -116,7 +116,7 @@ func TestRawGetAfterRawPut1(t *testing.T) {
 	defer cleanUpTestData(conf)
 	defer s.Stop()
 
-	put1 := &kvrpcpb.RawPutRequest{
+	put1 := &rawkv.RawPutRequest{
 		Key:   []byte{99},
 		Value: []byte{42},
 		Cf:    engine_util.CfDefault,
@@ -124,7 +124,7 @@ func TestRawGetAfterRawPut1(t *testing.T) {
 	_, err := server.RawPut(nil, put1)
 	assert.Nil(t, err)
 
-	put2 := &kvrpcpb.RawPutRequest{
+	put2 := &rawkv.RawPutRequest{
 		Key:   []byte{99},
 		Value: []byte{44},
 		Cf:    engine_util.CfWrite,
@@ -132,7 +132,7 @@ func TestRawGetAfterRawPut1(t *testing.T) {
 	_, err = server.RawPut(nil, put2)
 	assert.Nil(t, err)
 
-	get1 := &kvrpcpb.RawGetRequest{
+	get1 := &rawkv.RawGetRequest{
 		Key: []byte{99},
 		Cf:  engine_util.CfDefault,
 	}
@@ -140,7 +140,7 @@ func TestRawGetAfterRawPut1(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []byte{42}, resp.Value)
 
-	get2 := &kvrpcpb.RawGetRequest{
+	get2 := &rawkv.RawGetRequest{
 		Key: []byte{99},
 		Cf:  engine_util.CfWrite,
 	}
@@ -160,11 +160,11 @@ func TestRawGetAfterRawDelete1(t *testing.T) {
 	cf := engine_util.CfDefault
 	assert.Nil(t, Set(s, cf, []byte{99}, []byte{42}))
 
-	delete := &kvrpcpb.RawDeleteRequest{
+	delete := &rawkv.RawDeleteRequest{
 		Key: []byte{99},
 		Cf:  cf,
 	}
-	get := &kvrpcpb.RawGetRequest{
+	get := &rawkv.RawGetRequest{
 		Key: []byte{99},
 		Cf:  cf,
 	}
@@ -188,7 +188,7 @@ func TestRawDelete1(t *testing.T) {
 	cf := engine_util.CfDefault
 	assert.Nil(t, Set(s, cf, []byte{99}, []byte{42}))
 
-	req := &kvrpcpb.RawDeleteRequest{
+	req := &rawkv.RawDeleteRequest{
 		Key: []byte{99},
 		Cf:  cf,
 	}
@@ -217,7 +217,7 @@ func TestRawScan1(t *testing.T) {
 	Set(s, cf, []byte{4}, []byte{233, 4})
 	Set(s, cf, []byte{5}, []byte{233, 5})
 
-	req := &kvrpcpb.RawScanRequest{
+	req := &rawkv.RawScanRequest{
 		StartKey: []byte{1},
 		Limit:    3,
 		Cf:       cf,
@@ -248,13 +248,13 @@ func TestRawScanAfterRawPut1(t *testing.T) {
 	assert.Nil(t, Set(s, cf, []byte{3}, []byte{233, 3}))
 	assert.Nil(t, Set(s, cf, []byte{4}, []byte{233, 4}))
 
-	put := &kvrpcpb.RawPutRequest{
+	put := &rawkv.RawPutRequest{
 		Key:   []byte{5},
 		Value: []byte{233, 5},
 		Cf:    cf,
 	}
 
-	scan := &kvrpcpb.RawScanRequest{
+	scan := &rawkv.RawScanRequest{
 		StartKey: []byte{1},
 		Limit:    10,
 		Cf:       cf,
@@ -288,12 +288,12 @@ func TestRawScanAfterRawDelete1(t *testing.T) {
 	assert.Nil(t, Set(s, cf, []byte{3}, []byte{233, 3}))
 	assert.Nil(t, Set(s, cf, []byte{4}, []byte{233, 4}))
 
-	delete := &kvrpcpb.RawDeleteRequest{
+	delete := &rawkv.RawDeleteRequest{
 		Key: []byte{3},
 		Cf:  cf,
 	}
 
-	scan := &kvrpcpb.RawScanRequest{
+	scan := &rawkv.RawScanRequest{
 		StartKey: []byte{1},
 		Limit:    10,
 		Cf:       cf,
@@ -331,7 +331,7 @@ func TestIterWithRawDelete1(t *testing.T) {
 	assert.Nil(t, err)
 	defer it.Close()
 
-	delete := &kvrpcpb.RawDeleteRequest{
+	delete := &rawkv.RawDeleteRequest{
 		Key: []byte{3},
 		Cf:  cf,
 	}

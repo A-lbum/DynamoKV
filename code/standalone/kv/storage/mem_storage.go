@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Connor1996/badger/y"
+	"github.com/llllleeeewwwiis/standalone/util/engine_util"
 	"github.com/petar/GoLLRB/llrb"
-	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
-	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
 )
 
 // MemStorage is an in-memory storage engine used for testing. Data is not written to disk, nor sent to other
@@ -34,11 +33,11 @@ func (s *MemStorage) Stop() error {
 	return nil
 }
 
-func (s *MemStorage) Reader(ctx *kvrpcpb.Context) (StorageReader, error) {
+func (s *MemStorage) Reader() (StorageReader, error) {
 	return &memReader{s, 0}, nil
 }
 
-func (s *MemStorage) Write(ctx *kvrpcpb.Context, batch []Modify) error {
+func (s *MemStorage) Write(batch []Modify) error {
 	for _, m := range batch {
 		switch data := m.Data.(type) {
 		case Put:

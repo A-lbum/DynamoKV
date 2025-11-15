@@ -1,71 +1,43 @@
 #!/usr/bin/env bash
 
-# This script generates Go representations of Protobuf protocols. It will generate Go code in the pkg subdirectory
-# for every protocol in the proto subdirectory. It uses protoc, the protobuf compiler, which must be installed.
+# Modern protobuf code generation for standalone RawKV
+# This script generates:
+#   proto/pkg/<basename>/<basename>.pb.go
+#   proto/pkg/<basename>/<basename>_grpc.pb.go
 
-set -ex
+set -e
 
-push () {
-    pushd $1 >/dev/null 2>&1
-}
+ROOT_DIR=$(pwd)
+PROTO_DIR="$ROOT_DIR/proto"
+OUT_DIR="$ROOT_DIR/pkg"
 
-pop () {
-    popd $1 >/dev/null 2>&1
-}
+# Your module path
+GO_PREFIX_PATH="github.com/llllleeeewwwiis/standalone/proto/pkg"
 
-cmd_exists () {
-    which "$1" 1>/dev/null 2>&1
-}
+echo "Generating protobuf code..."
+echo "PROTO_DIR = $PROTO_DIR"
+echo "OUT_DIR   = $OUT_DIR"
+echo "GO_PREFIX = $GO_PREFIX_PATH"
 
-PROGRAM=$(basename "$0")
+# Create output directory
+mkdir -p "$OUT_DIR"
 
-if [ -z $(go env GOPATH) ]; then
-    printf "Error: the environment variable GOPATH is not set, please set it before running %s\n" $PROGRAM > /dev/stderr
-    exit 1
-fi
-GOPATH=$(go env GOPATH)
-GO_PREFIX_PATH=github.com/pingcap-incubator/tinykv/proto/pkg
-export PATH=$(pwd)/tools/bin:$GOPATH/bin:$PATH
+for file in "$PROTO_DIR"/*.proto; do
+    base=$(basename "$file" .proto)
+    target_dir="$OUT_DIR/$base"
 
-echo "install tools..."
-cd tools && make && cd ..
+    echo "Processing $file → $target_dir"
 
-function collect() {
-    file=$(basename $1)
-    base_name=$(basename $file ".proto")
-    mkdir -p ../pkg/$base_name
-    if [ -z $GO_OUT_M ]; then
-        GO_OUT_M="M$file=$GO_PREFIX_PATH/$base_name"
-    else
-        GO_OUT_M="$GO_OUT_M,M$file=$GO_PREFIX_PATH/$base_name"
-    fi
-}
+    mkdir -p "$target_dir"
 
-cd proto
-for file in `ls *.proto`
-    do
-    collect $file
+    # Generate *.pb.go
+    protoc \
+        -I "$PROTO_DIR" \
+        -I "$ROOT_DIR/proto/include" \
+        --go_out=paths=source_relative:"$target_dir" \
+        --go-grpc_out=paths=source_relative:"$target_dir" \
+        "$file"
+
 done
 
-echo "generate go code..."
-ret=0
-
-function gen() {
-    base_name=$(basename $1 ".proto")
-    protoc -I.:../include --gofast_out=plugins=grpc,$GO_OUT_M:../pkg/$base_name $1 || ret=$?
-    cd ../pkg/$base_name
-    sed -i.bak -E 's/import _ \"gogoproto\"//g' *.pb.go
-    sed -i.bak -E 's/import fmt \"fmt\"//g' *.pb.go
-    sed -i.bak -E 's/import io \"io\"//g' *.pb.go
-    sed -i.bak -E 's/import math \"math\"//g' *.pb.go
-    sed -i.bak -E 's/import _ \".*rustproto\"//' *.pb.go
-    rm -f *.bak
-    goimports -w *.pb.go
-    cd ../../proto
-}
-
-for file in `ls *.proto`
-    do
-    gen $file
-done
-exit $ret
+echo "Done. Generated files under proto/pkg/"

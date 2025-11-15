@@ -1,9 +1,8 @@
 package engine_util
 
 import (
-	"github.com/Connor1996/badger"
+	"github.com/dgraph-io/badger"
 	"github.com/golang/protobuf/proto"
-	"github.com/pingcap/errors"
 )
 
 type WriteBatch struct {
@@ -51,7 +50,7 @@ func (wb *WriteBatch) DeleteCF(cf string, key []byte) {
 func (wb *WriteBatch) SetMeta(key []byte, msg proto.Message) error {
 	val, err := proto.Marshal(msg)
 	if err != nil {
-		return errors.WithStack(err)
+		// return errors.WithStack(err)
 	}
 	wb.entries = append(wb.entries, &badger.Entry{
 		Key:   key,
@@ -88,7 +87,7 @@ func (wb *WriteBatch) WriteToDB(db *badger.DB) error {
 			return nil
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			// return errors.WithStack(err)
 		}
 	}
 	return nil

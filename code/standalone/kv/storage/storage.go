@@ -1,8 +1,7 @@
 package storage
 
 import (
-	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
-	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	"github.com/llllleeeewwwiis/standalone/util/engine_util"
 )
 
 // Storage represents the internal-facing server part of TinyKV, it handles sending and receiving from other
@@ -10,8 +9,8 @@ import (
 type Storage interface {
 	Start() error
 	Stop() error
-	Write(ctx *kvrpcpb.Context, batch []Modify) error
-	Reader(ctx *kvrpcpb.Context) (StorageReader, error)
+	Write(batch []Modify) error
+	Reader() (StorageReader, error)
 }
 
 type StorageReader interface {

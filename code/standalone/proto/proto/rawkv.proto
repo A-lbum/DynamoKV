@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package rawkv;
 
+option go_package = "github.com/llllleeeewwwiis/standalone/proto/pkg/rawkv";
+
 // ------------- RawKV 数据结构 -------------
 
 message RawGetRequest {

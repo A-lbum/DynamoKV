@@ -2,10 +2,9 @@ package standalone_storage
 
 import (
 	"github.com/Connor1996/badger"
-	"github.com/pingcap-incubator/tinykv/kv/config"
-	"github.com/pingcap-incubator/tinykv/kv/storage"
-	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
-	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	"github.com/llllleeeewwwiis/standalone/kv/config"
+	"github.com/llllleeeewwwiis/standalone/kv/storage"
+	"github.com/llllleeeewwwiis/standalone/util/engine_util"
 )
 
 type StandAloneStorage struct {
@@ -28,7 +27,7 @@ func (s *StandAloneStorage) Start() error { return nil }
 func (s *StandAloneStorage) Stop() error  { return s.db.Close() }
 
 // 截图
-func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
+func (s *StandAloneStorage) Reader() (storage.StorageReader, error) {
 	txn := s.db.NewTransaction(false) // 只读事务，用于迭代器
 	return &StandAloneStorageReader{
 		db:  s.db,
@@ -36,7 +35,7 @@ func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader,
 	}, nil
 }
 
-func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
+func (s *StandAloneStorage) Write(batch []storage.Modify) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		for _, m := range batch {
 			switch data := m.Data.(type) {
