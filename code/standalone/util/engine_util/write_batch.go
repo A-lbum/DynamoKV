@@ -1,7 +1,7 @@
 package engine_util
 
 import (
-	"github.com/dgraph-io/badger"
+	"github.com/Connor1996/badger"
 	"github.com/golang/protobuf/proto"
 )
 
