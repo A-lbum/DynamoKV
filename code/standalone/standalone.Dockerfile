@@ -1,7 +1,6 @@
 FROM golang:1.22 AS builder
 WORKDIR /app
 
-# 拷贝 standalone 代码
 COPY . .
 
 RUN go mod download

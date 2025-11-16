@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  node:
+    image: standalone-kv
+    build:
+      context: ./code/standalone
+      dockerfile: standalone.Dockerfile
+    command: ["--addr=0.0.0.0:20160", "--path=/data"]
+    ports:
+      - "20160"
+    volumes:
+      - /data
