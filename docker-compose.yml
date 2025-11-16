@@ -1,43 +1,13 @@
 version: "3.9"
 
 services:
-  node1:
+  node:
     image: standalone-kv
-    container_name: node1
     build:
       context: ./code/standalone
       dockerfile: standalone.Dockerfile
     command: ["--addr=0.0.0.0:20160", "--path=/data"]
     ports:
-      - "20160:20160"
+      - "20160"
     volumes:
-      - node1-data:/data
-
-  node2:
-    image: standalone-kv
-    container_name: node2
-    build:
-      context: ./code/standalone
-      dockerfile: standalone.Dockerfile
-    command: ["--addr=0.0.0.0:20160", "--path=/data"]
-    ports:
-      - "20161:20160"
-    volumes:
-      - node2-data:/data
-
-  node3:
-    image: standalone-kv
-    container_name: node3
-    build:
-      context: ./code/standalone
-      dockerfile: standalone.Dockerfile
-    command: ["--addr=0.0.0.0:20160", "--path=/data"]
-    ports:
-      - "20162:20160"
-    volumes:
-      - node3-data:/data
-
-volumes:
-  node1-data:
-  node2-data:
-  node3-data:
+      - /data
