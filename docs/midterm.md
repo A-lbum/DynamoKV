@@ -14,7 +14,7 @@ In this phase, we define the project goals, performance metrics, and overall arc
 
 - **Background Knowledge Attainment**: Review the designs of Dynamo and Etcd, identifying their trade-offs under the CAP theorem. 
 
-- **System Architecture Design**: First design a standalone Key-value storage node, and the expand it to a distributed framework, i.e., a storage layer and a distribution layer.
+- **System Architecture Design**: First design a standalone Key-value storage node, and then expand it to a distributed framework, i.e., a storage layer and a distribution layer.
 
 ### Phase 2: Standalone KV Implementation
 
@@ -25,7 +25,7 @@ In this phase, we implement a single-node key-value storage service that uses a 
 - **Raw Key/Value Service Handlers Implementation**: Implement the logic for the raw key/value service handlers.
 - **StandaloneKV Test**: Conduct initial tests for correctness and reliability.
 
-### Phase 3: Distributed Framework Implementation 
+### Phase 3: Distributed Framework Implementation
 
 In this phase, we extend the standalone KV store into a fully distributed, Dynamo-style system prototype, implementing scalability, fault tolerance, and eventual consistency.
 
