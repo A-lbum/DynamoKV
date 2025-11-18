@@ -121,6 +121,7 @@ We conducted a basic performance measurement of our standalone KVStore by perfor
 | 10000   | 266      | 4        | 264         |
 | 100000  | 2652     | 50       | 2639        |
 | 1000000 | 26563    | 910      | 26517       |
+
 The preliminary performance results demonstrate that both PUT and DELETE operations exhibit roughly linear growth with respect to the number of key-value pairs, indicating that the underlying BadgerDB storage engine maintains predictable performance even under extremely high loads. In contrast, GET operations remain significantly faster than writes and deletions, reflecting efficient read paths and in-memory indexing. Furthermore, despite increasing the dataset size from hundreds to one million entries, the system consistently executes all operations without errors or failures, demonstrating strong stability and robustness at scale.
 
 ### 2.3 Challenges
@@ -179,8 +180,8 @@ We package the standalone KV node into a Docker image. This provides the followi
 
 ```bash
 $ docker images
-	REPOSITORY                                         TAG       IMAGE ID       CREATED       SIZE
-	standalone-kv                                      latest    7fa200c99005   5 hours ago   117MB
+	REPOSITORY                                 TAG       IMAGE ID       CREATED       SIZE
+	standalone-kv                              latest    7fa200c99005   5 hours ago   117MB
 ```
 
 The following is a example of launching several nodes:
