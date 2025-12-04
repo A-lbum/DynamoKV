@@ -3,7 +3,7 @@ package node
 import (
 	"sync"
 
-	pb "github.com/llllleeeewwwiis/distributed_core/proto/dynamo"
+	pb "github.com/llllleeeewwwiis/distributed_core/proto/pkg/dynamo"
 )
 
 // StorageAdapter is a minimal interface the node server uses.
