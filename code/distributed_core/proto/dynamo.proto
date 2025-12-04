@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package dynamo;
+
+option go_package = "github.com/llllleeeewwwiis/distributed_core/proto/dynamo";
+
+// ------------------------------------------------------------
+// node identity
+// ------------------------------------------------------------
+message NodeID {
+    string id = 1; // e.g., "node-1"
+}
+
+// ------------------------------------------------------------
+// Vector Clock
+// ------------------------------------------------------------
+message VectorClockEntry {
+    string node = 1;
+    int64 counter = 2;
+}
+
+message VectorClock {
+    repeated VectorClockEntry entries = 1;
+}
+
+// ------------------------------------------------------------
+// Versioned Value (Dynamo Core)
+// ------------------------------------------------------------
+message VersionedValue {
+    bytes value = 1;
+    VectorClock clock = 2;
+    int64 timestamp = 3; // optional, for LWW fallback
+}
+
+// ------------------------------------------------------------
+// Internal PUT and GET API (Replica communication)
+// ------------------------------------------------------------
+
+// Coordinator → Replica
+message InternalPutRequest {
+    bytes key = 1;
+    VersionedValue data = 2;
+
+    bool is_hint = 3;   // true if this is hinted handoff
+    string original_node = 4; // original target of hint
+}
+
+message InternalPutResponse {
+    bool ok = 1;
+}
+
+// Coordinator → Replica
+message InternalGetRequest {
+    bytes key = 1;
+}
+
+message InternalGetResponse {
+    repeated VersionedValue versions = 1;
+}
+
+// ------------------------------------------------------------
+// Sloppy Quorum + Hinted Handoff metadata exchange
+// ------------------------------------------------------------
+message Hint {
+    bytes key = 1;
+    VersionedValue data = 2;
+    string target_node = 3;
+}
+
+message HandoffBatch {
+    repeated Hint hints = 1;
+}
+
+message HandoffAck {
+    bool ok = 1;
+}
+
+// ------------------------------------------------------------
+// Metadata Sync for Gossip
+// ------------------------------------------------------------
+message NodeState {
+    string node = 1;
+    bool alive = 2;
+    int64 heartbeat = 3;
+}
+
+message GossipState {
+    repeated NodeState nodes = 1;
+}
+
+message GossipResponse {
+    bool ok = 1;
+}
+
+// ------------------------------------------------------------
+// Dynamo Internal RPC Service
+// ------------------------------------------------------------
+service DynamoRPC {
+
+    // Replication API
+    rpc InternalPut(InternalPutRequest) returns (InternalPutResponse);
+    rpc InternalGet(InternalGetRequest) returns (InternalGetResponse);
+
+    // Hinted handoff
+    rpc SendHints(HandoffBatch) returns (HandoffAck);
+
+    // Gossip membership
+    rpc PushGossip(GossipState) returns (GossipResponse);
+}
