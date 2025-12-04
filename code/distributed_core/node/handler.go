@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 
-	pb "github.com/llllleeeewwwiis/distributed_core/proto/dynamo"
+	pb "github.com/llllleeeewwwiis/distributed_core/proto/pkg/dynamo"
 )
 
 type NodeServer struct {

@@ -5,7 +5,7 @@ import (
 
 	"log"
 
-	pb "github.com/llllleeeewwwiis/distributed_core/proto/dynamo"
+	pb "github.com/llllleeeewwwiis/distributed_core/proto/pkg/dynamo"
 	"google.golang.org/grpc"
 )
 
