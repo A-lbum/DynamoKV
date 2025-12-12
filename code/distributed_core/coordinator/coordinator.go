@@ -37,6 +37,9 @@ type Coordinator struct {
 	// hinted handoff buffer
 	handoff *HintBuffer
 
+	// node up/down state (true if node is considered down/unreachable)
+	nodeDown map[string]bool
+
 	closed int32
 }
 
@@ -59,6 +62,7 @@ func NewCoordinator(vnodes int, N, R, W int, localNodeID string) *Coordinator {
 		LocalNodeID: localNodeID,
 		localClock:  map[string]int64{localNodeID: 0},
 		handoff:     NewHintBuffer(),
+		nodeDown:    make(map[string]bool),
 	}
 	go c.healthChecker()
 	return c
@@ -72,10 +76,13 @@ func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// persist address and ensure node remains on ring
 	c.nodeAddrs[nodeID] = addr
 	c.partitioner.AddNode(hash.NodeID(nodeID))
 
+	// if already have client, mark up and return
 	if _, ok := c.clients[nodeID]; ok {
+		c.nodeDown[nodeID] = false
 		return nil
 	}
 
@@ -83,11 +90,15 @@ func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 	defer cancel()
 	conn, err := grpc.DialContext(ctx, addr, c.dialOpts...)
 	if err != nil {
+		// do not remove node from ring on dial failure: keep node in ring but mark it down
+		c.nodeDown[nodeID] = true
 		return fmt.Errorf("dial failed: %w", err)
 	}
 
 	c.conns[nodeID] = conn
 	c.clients[nodeID] = pb.NewDynamoRPCClient(conn)
+	// mark node as up
+	c.nodeDown[nodeID] = false
 	return nil
 }
 
@@ -95,18 +106,23 @@ func (c *Coordinator) UnregisterNode(nodeID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.partitioner.RemoveNode(hash.NodeID(nodeID))
+	// DO NOT remove node from partitioner here — keep it in ring so preference lists still include it.
+	// c.partitioner.RemoveNode(hash.NodeID(nodeID))
 
+	// close active connection and remove client, mark node down
 	if conn, ok := c.conns[nodeID]; ok {
 		_ = conn.Close()
 		delete(c.conns, nodeID)
 	}
 	delete(c.clients, nodeID)
-	// keep nodeAddrs so healthChecker can reconnect
+
+	// mark down so callers/put logic will treat it as unreachable (and trigger hinted handoff)
+	c.nodeDown[nodeID] = true
+	// keep nodeAddrs so healthChecker can reconnect later
 }
 
 // ----------------------------------------------------------------------
-// Health Checking + Reconnect
+// Health Checking + Reconnect (FIXED)
 // ----------------------------------------------------------------------
 
 func (c *Coordinator) healthChecker() {
@@ -118,39 +134,44 @@ func (c *Coordinator) healthChecker() {
 			return
 		}
 
+		// copy nodeAddrs
 		c.mu.RLock()
-		addrs := make(map[string]string)
+		addrs := make(map[string]string, len(c.nodeAddrs))
 		for nid, addr := range c.nodeAddrs {
 			addrs[nid] = addr
 		}
 		c.mu.RUnlock()
 
 		for nid, addr := range addrs {
+			// check if connected
 			c.mu.RLock()
-			connected := (c.clients[nid] != nil)
+			client := c.clients[nid]
 			c.mu.RUnlock()
 
-			// Try reconnect
-			if !connected {
+			//-------------------------------------------------------------
+			// Case 1: Not connected → try reconnect
+			//-------------------------------------------------------------
+			if client == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 				conn, err := grpc.DialContext(ctx, addr, c.dialOpts...)
 				cancel()
 				if err != nil {
-					continue
+					continue // still down
 				}
+
+				// *** 修改：成功重连后 mark UP ***
 				c.mu.Lock()
 				c.conns[nid] = conn
 				c.clients[nid] = pb.NewDynamoRPCClient(conn)
 				c.partitioner.AddNode(hash.NodeID(nid))
 				c.mu.Unlock()
+
 				continue
 			}
 
-			// ping via gossip
-			c.mu.RLock()
-			client := c.clients[nid]
-			c.mu.RUnlock()
-
+			//-------------------------------------------------------------
+			// Case 2: Connected → send gossip (act as health ping)
+			//-------------------------------------------------------------
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			_, err := client.PushGossip(ctx, &pb.GossipState{
 				Nodes: []*pb.NodeState{
@@ -160,6 +181,9 @@ func (c *Coordinator) healthChecker() {
 			cancel()
 
 			if err != nil {
+				//---------------------------------------------------------
+				// *** 修改：探测失败 → mark DOWN ***
+				//---------------------------------------------------------
 				c.UnregisterNode(nid)
 			}
 		}
@@ -199,6 +223,13 @@ func (c *Coordinator) getClient(node string) pb.DynamoRPCClient {
 }
 
 func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) error {
+	c.mu.RLock()
+	down := c.nodeDown[node]
+	c.mu.RUnlock()
+	if down {
+		return fmt.Errorf("node %s is marked down", node)
+	}
+
 	client := c.getClient(node)
 	if client == nil {
 		return fmt.Errorf("no client for node %s", node)
@@ -206,6 +237,19 @@ func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) e
 	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 	_, err := client.InternalPut(ctx, req)
+	// if rpc error, consider marking node down (best-effort)
+	if err != nil {
+		// mark node down so future attempts will fallback quickly
+		c.mu.Lock()
+		c.nodeDown[node] = true
+		// close and remove conn/client if present
+		if conn, ok := c.conns[node]; ok {
+			_ = conn.Close()
+			delete(c.conns, node)
+		}
+		delete(c.clients, node)
+		c.mu.Unlock()
+	}
 	return err
 }
 
