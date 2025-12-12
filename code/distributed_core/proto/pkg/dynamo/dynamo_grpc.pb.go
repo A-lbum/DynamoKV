@@ -23,6 +23,7 @@ const (
 	DynamoRPC_InternalGet_FullMethodName = "/dynamo.DynamoRPC/InternalGet"
 	DynamoRPC_SendHints_FullMethodName   = "/dynamo.DynamoRPC/SendHints"
 	DynamoRPC_PushGossip_FullMethodName  = "/dynamo.DynamoRPC/PushGossip"
+	DynamoRPC_FetchHints_FullMethodName  = "/dynamo.DynamoRPC/FetchHints"
 )
 
 // DynamoRPCClient is the client API for DynamoRPC service.
@@ -40,6 +41,7 @@ type DynamoRPCClient interface {
 	SendHints(ctx context.Context, in *HandoffBatch, opts ...grpc.CallOption) (*HandoffAck, error)
 	// Gossip membership
 	PushGossip(ctx context.Context, in *GossipState, opts ...grpc.CallOption) (*GossipResponse, error)
+	FetchHints(ctx context.Context, in *FetchHintsRequest, opts ...grpc.CallOption) (*HandoffBatch, error)
 }
 
 type dynamoRPCClient struct {
@@ -90,6 +92,16 @@ func (c *dynamoRPCClient) PushGossip(ctx context.Context, in *GossipState, opts 
 	return out, nil
 }
 
+func (c *dynamoRPCClient) FetchHints(ctx context.Context, in *FetchHintsRequest, opts ...grpc.CallOption) (*HandoffBatch, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HandoffBatch)
+	err := c.cc.Invoke(ctx, DynamoRPC_FetchHints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DynamoRPCServer is the server API for DynamoRPC service.
 // All implementations must embed UnimplementedDynamoRPCServer
 // for forward compatibility.
@@ -105,6 +117,7 @@ type DynamoRPCServer interface {
 	SendHints(context.Context, *HandoffBatch) (*HandoffAck, error)
 	// Gossip membership
 	PushGossip(context.Context, *GossipState) (*GossipResponse, error)
+	FetchHints(context.Context, *FetchHintsRequest) (*HandoffBatch, error)
 	mustEmbedUnimplementedDynamoRPCServer()
 }
 
@@ -126,6 +139,9 @@ func (UnimplementedDynamoRPCServer) SendHints(context.Context, *HandoffBatch) (*
 }
 func (UnimplementedDynamoRPCServer) PushGossip(context.Context, *GossipState) (*GossipResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushGossip not implemented")
+}
+func (UnimplementedDynamoRPCServer) FetchHints(context.Context, *FetchHintsRequest) (*HandoffBatch, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchHints not implemented")
 }
 func (UnimplementedDynamoRPCServer) mustEmbedUnimplementedDynamoRPCServer() {}
 func (UnimplementedDynamoRPCServer) testEmbeddedByValue()                   {}
@@ -220,6 +236,24 @@ func _DynamoRPC_PushGossip_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DynamoRPC_FetchHints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchHintsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DynamoRPCServer).FetchHints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DynamoRPC_FetchHints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DynamoRPCServer).FetchHints(ctx, req.(*FetchHintsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DynamoRPC_ServiceDesc is the grpc.ServiceDesc for DynamoRPC service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,6 +276,10 @@ var DynamoRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PushGossip",
 			Handler:    _DynamoRPC_PushGossip_Handler,
+		},
+		{
+			MethodName: "FetchHints",
+			Handler:    _DynamoRPC_FetchHints_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

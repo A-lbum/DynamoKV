@@ -583,6 +583,50 @@ func (x *HandoffAck) GetOk() bool {
 	return false
 }
 
+type FetchHintsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetNode    string                 `protobuf:"bytes,1,opt,name=target_node,json=targetNode,proto3" json:"target_node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchHintsRequest) Reset() {
+	*x = FetchHintsRequest{}
+	mi := &file_dynamo_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchHintsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchHintsRequest) ProtoMessage() {}
+
+func (x *FetchHintsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dynamo_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchHintsRequest.ProtoReflect.Descriptor instead.
+func (*FetchHintsRequest) Descriptor() ([]byte, []int) {
+	return file_dynamo_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *FetchHintsRequest) GetTargetNode() string {
+	if x != nil {
+		return x.TargetNode
+	}
+	return ""
+}
+
 // ------------------------------------------------------------
 // Metadata Sync for Gossip
 // ------------------------------------------------------------
@@ -597,7 +641,7 @@ type NodeState struct {
 
 func (x *NodeState) Reset() {
 	*x = NodeState{}
-	mi := &file_dynamo_proto_msgTypes[11]
+	mi := &file_dynamo_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -609,7 +653,7 @@ func (x *NodeState) String() string {
 func (*NodeState) ProtoMessage() {}
 
 func (x *NodeState) ProtoReflect() protoreflect.Message {
-	mi := &file_dynamo_proto_msgTypes[11]
+	mi := &file_dynamo_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -622,7 +666,7 @@ func (x *NodeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeState.ProtoReflect.Descriptor instead.
 func (*NodeState) Descriptor() ([]byte, []int) {
-	return file_dynamo_proto_rawDescGZIP(), []int{11}
+	return file_dynamo_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *NodeState) GetNode() string {
@@ -655,7 +699,7 @@ type GossipState struct {
 
 func (x *GossipState) Reset() {
 	*x = GossipState{}
-	mi := &file_dynamo_proto_msgTypes[12]
+	mi := &file_dynamo_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -667,7 +711,7 @@ func (x *GossipState) String() string {
 func (*GossipState) ProtoMessage() {}
 
 func (x *GossipState) ProtoReflect() protoreflect.Message {
-	mi := &file_dynamo_proto_msgTypes[12]
+	mi := &file_dynamo_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -680,7 +724,7 @@ func (x *GossipState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GossipState.ProtoReflect.Descriptor instead.
 func (*GossipState) Descriptor() ([]byte, []int) {
-	return file_dynamo_proto_rawDescGZIP(), []int{12}
+	return file_dynamo_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GossipState) GetNodes() []*NodeState {
@@ -699,7 +743,7 @@ type GossipResponse struct {
 
 func (x *GossipResponse) Reset() {
 	*x = GossipResponse{}
-	mi := &file_dynamo_proto_msgTypes[13]
+	mi := &file_dynamo_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -711,7 +755,7 @@ func (x *GossipResponse) String() string {
 func (*GossipResponse) ProtoMessage() {}
 
 func (x *GossipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dynamo_proto_msgTypes[13]
+	mi := &file_dynamo_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -724,7 +768,7 @@ func (x *GossipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GossipResponse.ProtoReflect.Descriptor instead.
 func (*GossipResponse) Descriptor() ([]byte, []int) {
-	return file_dynamo_proto_rawDescGZIP(), []int{13}
+	return file_dynamo_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GossipResponse) GetOk() bool {
@@ -770,7 +814,10 @@ const file_dynamo_proto_rawDesc = "" +
 	"\x05hints\x18\x01 \x03(\v2\f.dynamo.HintR\x05hints\"\x1c\n" +
 	"\n" +
 	"HandoffAck\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"S\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"4\n" +
+	"\x11FetchHintsRequest\x12\x1f\n" +
+	"\vtarget_node\x18\x01 \x01(\tR\n" +
+	"targetNode\"S\n" +
 	"\tNodeState\x12\x12\n" +
 	"\x04node\x18\x01 \x01(\tR\x04node\x12\x14\n" +
 	"\x05alive\x18\x02 \x01(\bR\x05alive\x12\x1c\n" +
@@ -778,13 +825,15 @@ const file_dynamo_proto_rawDesc = "" +
 	"\vGossipState\x12'\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x11.dynamo.NodeStateR\x05nodes\" \n" +
 	"\x0eGossipResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok2\x8d\x02\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok2\xcc\x02\n" +
 	"\tDynamoRPC\x12F\n" +
 	"\vInternalPut\x12\x1a.dynamo.InternalPutRequest\x1a\x1b.dynamo.InternalPutResponse\x12F\n" +
 	"\vInternalGet\x12\x1a.dynamo.InternalGetRequest\x1a\x1b.dynamo.InternalGetResponse\x125\n" +
 	"\tSendHints\x12\x14.dynamo.HandoffBatch\x1a\x12.dynamo.HandoffAck\x129\n" +
 	"\n" +
-	"PushGossip\x12\x13.dynamo.GossipState\x1a\x16.dynamo.GossipResponseB:Z8github.com/llllleeeewwwiis/distributed_core/proto/dynamob\x06proto3"
+	"PushGossip\x12\x13.dynamo.GossipState\x1a\x16.dynamo.GossipResponse\x12=\n" +
+	"\n" +
+	"FetchHints\x12\x19.dynamo.FetchHintsRequest\x1a\x14.dynamo.HandoffBatchB:Z8github.com/llllleeeewwwiis/distributed_core/proto/dynamob\x06proto3"
 
 var (
 	file_dynamo_proto_rawDescOnce sync.Once
@@ -798,7 +847,7 @@ func file_dynamo_proto_rawDescGZIP() []byte {
 	return file_dynamo_proto_rawDescData
 }
 
-var file_dynamo_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_dynamo_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_dynamo_proto_goTypes = []any{
 	(*NodeID)(nil),              // 0: dynamo.NodeID
 	(*VectorClockEntry)(nil),    // 1: dynamo.VectorClockEntry
@@ -811,9 +860,10 @@ var file_dynamo_proto_goTypes = []any{
 	(*Hint)(nil),                // 8: dynamo.Hint
 	(*HandoffBatch)(nil),        // 9: dynamo.HandoffBatch
 	(*HandoffAck)(nil),          // 10: dynamo.HandoffAck
-	(*NodeState)(nil),           // 11: dynamo.NodeState
-	(*GossipState)(nil),         // 12: dynamo.GossipState
-	(*GossipResponse)(nil),      // 13: dynamo.GossipResponse
+	(*FetchHintsRequest)(nil),   // 11: dynamo.FetchHintsRequest
+	(*NodeState)(nil),           // 12: dynamo.NodeState
+	(*GossipState)(nil),         // 13: dynamo.GossipState
+	(*GossipResponse)(nil),      // 14: dynamo.GossipResponse
 }
 var file_dynamo_proto_depIdxs = []int32{
 	1,  // 0: dynamo.VectorClock.entries:type_name -> dynamo.VectorClockEntry
@@ -822,17 +872,19 @@ var file_dynamo_proto_depIdxs = []int32{
 	3,  // 3: dynamo.InternalGetResponse.versions:type_name -> dynamo.VersionedValue
 	3,  // 4: dynamo.Hint.data:type_name -> dynamo.VersionedValue
 	8,  // 5: dynamo.HandoffBatch.hints:type_name -> dynamo.Hint
-	11, // 6: dynamo.GossipState.nodes:type_name -> dynamo.NodeState
+	12, // 6: dynamo.GossipState.nodes:type_name -> dynamo.NodeState
 	4,  // 7: dynamo.DynamoRPC.InternalPut:input_type -> dynamo.InternalPutRequest
 	6,  // 8: dynamo.DynamoRPC.InternalGet:input_type -> dynamo.InternalGetRequest
 	9,  // 9: dynamo.DynamoRPC.SendHints:input_type -> dynamo.HandoffBatch
-	12, // 10: dynamo.DynamoRPC.PushGossip:input_type -> dynamo.GossipState
-	5,  // 11: dynamo.DynamoRPC.InternalPut:output_type -> dynamo.InternalPutResponse
-	7,  // 12: dynamo.DynamoRPC.InternalGet:output_type -> dynamo.InternalGetResponse
-	10, // 13: dynamo.DynamoRPC.SendHints:output_type -> dynamo.HandoffAck
-	13, // 14: dynamo.DynamoRPC.PushGossip:output_type -> dynamo.GossipResponse
-	11, // [11:15] is the sub-list for method output_type
-	7,  // [7:11] is the sub-list for method input_type
+	13, // 10: dynamo.DynamoRPC.PushGossip:input_type -> dynamo.GossipState
+	11, // 11: dynamo.DynamoRPC.FetchHints:input_type -> dynamo.FetchHintsRequest
+	5,  // 12: dynamo.DynamoRPC.InternalPut:output_type -> dynamo.InternalPutResponse
+	7,  // 13: dynamo.DynamoRPC.InternalGet:output_type -> dynamo.InternalGetResponse
+	10, // 14: dynamo.DynamoRPC.SendHints:output_type -> dynamo.HandoffAck
+	14, // 15: dynamo.DynamoRPC.PushGossip:output_type -> dynamo.GossipResponse
+	9,  // 16: dynamo.DynamoRPC.FetchHints:output_type -> dynamo.HandoffBatch
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name
@@ -849,7 +901,7 @@ func file_dynamo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dynamo_proto_rawDesc), len(file_dynamo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
