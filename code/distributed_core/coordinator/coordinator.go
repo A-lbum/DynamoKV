@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,6 +67,15 @@ func NewCoordinator(vnodes int, N, R, W int, localNodeID string) *Coordinator {
 	}
 	go c.healthChecker()
 	return c
+}
+
+func (c *Coordinator) InitFromSeeds(localNodeID string, seeds []string) {
+	for _, seed := range seeds {
+		if seed == localNodeID {
+			continue
+		}
+		_ = c.RegisterNode(seed, seed)
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -267,6 +277,7 @@ func (c *Coordinator) getClient(node string) pb.DynamoRPCClient {
 }
 
 func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) error {
+	fmt.Printf("[COORD] InternalPut sending to %s (down=%v)\n", node, down)
 	c.mu.RLock()
 	down := c.nodeDown[node]
 	c.mu.RUnlock()
@@ -275,12 +286,19 @@ func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) e
 	}
 
 	client := c.getClient(node)
+	log.Printf("[COORD] Sending InternalPut to %s key=%s isHint=%v ts=%d",
+		node, string(req.Key), req.IsHint, req.Data.Timestamp)
 	if client == nil {
 		return fmt.Errorf("no client for node %s", node)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 	_, err := client.InternalPut(ctx, req)
+	if err != nil {
+		log.Printf("[COORD] InternalPut FAIL to %s key=%s err=%v", node, string(req.Key), err)
+	} else {
+		log.Printf("[COORD] InternalPut OK to %s key=%s", node, string(req.Key))
+	}
 	// if rpc error, consider marking node down (best-effort)
 	if err != nil {
 		// mark node down so future attempts will fallback quickly
@@ -331,6 +349,7 @@ func (c *Coordinator) getAllCandidates(key []byte) []string {
 // ----------------------------------------------------------------------
 
 func (c *Coordinator) Put(key []byte, value []byte) error {
+	fmt.Printf("[COORD] Put received key=%s\n", string(key))
 	preference := c.getAllCandidates(key)
 	if len(preference) == 0 {
 		return fmt.Errorf("no nodes available")

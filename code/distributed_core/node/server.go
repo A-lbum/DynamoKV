@@ -2,6 +2,7 @@ package node
 
 import (
 	"net"
+	"os"
 
 	"log"
 
@@ -34,4 +35,16 @@ func ServeAsync(addr string, storage StorageAdapter) (*grpc.Server, error) {
 		_ = grpcServer.Serve(lis)
 	}()
 	return grpcServer, nil
+}
+
+func ServeWithConfig() error {
+	nodeID := os.Getenv("NODE_ID")
+	bind := os.Getenv("BIND")
+	if bind == "" {
+		bind = ":8080"
+	}
+
+	storage := NewMemoryStorage()
+	log.Printf("Node %s starting on %s\n", nodeID, bind)
+	return Serve(bind, storage)
 }
