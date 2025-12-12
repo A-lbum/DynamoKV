@@ -163,7 +163,7 @@ func (c *Coordinator) healthChecker() {
 				c.mu.Lock()
 				c.conns[nid] = conn
 				c.clients[nid] = pb.NewDynamoRPCClient(conn)
-				c.partitioner.AddNode(hash.NodeID(nid))
+				// c.partitioner.AddNode(hash.NodeID(nid))
 				c.mu.Unlock()
 
 				continue
