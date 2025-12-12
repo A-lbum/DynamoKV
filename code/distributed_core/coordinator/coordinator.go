@@ -72,34 +72,77 @@ func NewCoordinator(vnodes int, N, R, W int, localNodeID string) *Coordinator {
 // Membership
 // ----------------------------------------------------------------------
 
+// RegisterNode ... (keep earlier code above same)
 func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// persist address and ensure node remains on ring
 	c.nodeAddrs[nodeID] = addr
 	c.partitioner.AddNode(hash.NodeID(nodeID))
+	c.mu.Unlock()
 
-	// if already have client, mark up and return
-	if _, ok := c.clients[nodeID]; ok {
-		c.nodeDown[nodeID] = false
-		return nil
-	}
-
+	// dial (outside lock)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
 	conn, err := grpc.DialContext(ctx, addr, c.dialOpts...)
+	cancel()
 	if err != nil {
-		// do not remove node from ring on dial failure: keep node in ring but mark it down
-		c.nodeDown[nodeID] = true
 		return fmt.Errorf("dial failed: %w", err)
 	}
 
+	c.mu.Lock()
 	c.conns[nodeID] = conn
 	c.clients[nodeID] = pb.NewDynamoRPCClient(conn)
-	// mark node as up
-	c.nodeDown[nodeID] = false
+	c.mu.Unlock()
+
+	// After successful registration/dial, attempt to collect hints stored on other nodes for this node
+	go c.deliverHintsToNode(nodeID)
+
 	return nil
+}
+
+func (c *Coordinator) deliverHintsToNode(target string) {
+	// gather snapshot of clients
+	c.mu.RLock()
+	clients := make(map[string]pb.DynamoRPCClient)
+	for nid, cli := range c.clients {
+		if nid == target {
+			continue
+		}
+		clients[nid] = cli
+	}
+	targetClient := c.clients[target]
+	c.mu.RUnlock()
+
+	if targetClient == nil {
+		return
+	}
+
+	// for each node, call FetchHints(target)
+	for nid, cli := range clients {
+		ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
+		batch, err := cli.FetchHints(ctx, &pb.FetchHintsRequest{TargetNode: target})
+		cancel()
+		if err != nil {
+			// couldn't fetch from this node; skip
+			continue
+		}
+		if batch == nil || len(batch.Hints) == 0 {
+			continue
+		}
+		// deliver batch to target
+		ctx2, cancel2 := context.WithTimeout(context.Background(), c.rpcTimeout)
+		_, err2 := targetClient.SendHints(ctx2, batch)
+		cancel2()
+		if err2 != nil {
+			// delivery failed: as last resort, store in coordinator handoff buffer
+			for _, h := range batch.Hints {
+				c.handoff.StoreHint(h.TargetNode, h)
+			}
+			continue
+		}
+		// delivered successfully - done for hints from this node (they were already popped on fetch)
+	}
+
+	// also attempt to deliver any hints stored in coordinator's own buffer
+	c.FlushHints()
 }
 
 func (c *Coordinator) UnregisterNode(nodeID string) {

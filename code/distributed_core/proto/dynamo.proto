@@ -75,6 +75,10 @@ message HandoffAck {
     bool ok = 1;
 }
 
+message FetchHintsRequest {
+    string target_node = 1;
+}
+
 // ------------------------------------------------------------
 // Metadata Sync for Gossip
 // ------------------------------------------------------------
@@ -106,4 +110,6 @@ service DynamoRPC {
 
     // Gossip membership
     rpc PushGossip(GossipState) returns (GossipResponse);
+
+    rpc FetchHints(FetchHintsRequest) returns (HandoffBatch);
 }
