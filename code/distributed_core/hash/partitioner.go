@@ -112,3 +112,9 @@ func (p *Partitioner) GetReplicas(key []byte, n int) []NodeID {
 
 	return replicas
 }
+
+func (p *Partitioner) NodeCount() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.nodes)
+}
