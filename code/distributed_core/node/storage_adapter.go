@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	pb "github.com/llllleeeewwwiis/distributed_core/proto/pkg/dynamo"
+	"github.com/llllleeeewwwiis/distributed_core/vclock"
 )
 
 // StorageAdapter is a minimal interface the node server uses.
@@ -25,12 +26,23 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
+// Put now merges incoming version with existing versions using vector-clock rules.
 func (s *MemoryStorage) Put(key []byte, vv *pb.VersionedValue) error {
 	k := string(key)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// naive append; in real impl you would merge vector clocks
-	s.m[k] = append(s.m[k], vv)
+
+	// get existing
+	existing := s.m[k]
+	// combine
+	all := make([]*pb.VersionedValue, 0, len(existing)+1)
+	all = append(all, existing...)
+	all = append(all, vv)
+
+	// merge using vector clock rules
+	merged := vclock.MergeVersionedValues(all)
+	// store merged result
+	s.m[k] = merged
 	return nil
 }
 
@@ -42,5 +54,8 @@ func (s *MemoryStorage) Get(key []byte) ([]*pb.VersionedValue, error) {
 	if vs == nil {
 		return []*pb.VersionedValue{}, nil
 	}
-	return vs, nil
+	// return copy to avoid caller mutating internal slice
+	out := make([]*pb.VersionedValue, len(vs))
+	copy(out, vs)
+	return out, nil
 }
