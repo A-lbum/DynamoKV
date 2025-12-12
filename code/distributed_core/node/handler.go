@@ -6,7 +6,14 @@ import (
 	pb "github.com/llllleeeewwwiis/distributed_core/proto/pkg/dynamo"
 )
 
-// NodeServer previously defined elsewhere; ensure it embeds UnimplementedDynamoRPCServer.
+type NodeServer struct {
+	pb.UnimplementedDynamoRPCServer
+	storage StorageAdapter
+}
+
+func NewNodeServer(storage StorageAdapter) *NodeServer {
+	return &NodeServer{storage: storage}
+}
 
 func (s *NodeServer) InternalPut(ctx context.Context, req *pb.InternalPutRequest) (*pb.InternalPutResponse, error) {
 	if req == nil || req.Data == nil {
@@ -63,4 +70,9 @@ func (s *NodeServer) FetchHints(ctx context.Context, req *pb.FetchHintsRequest) 
 	}
 	// if storage not memory, no hints
 	return &pb.HandoffBatch{Hints: []*pb.Hint{}}, nil
+}
+
+func (s *NodeServer) PushGossip(ctx context.Context, st *pb.GossipState) (*pb.GossipResponse, error) {
+	// basic placeholder: accept gossip and return OK (we may extend to update local state)
+	return &pb.GossipResponse{Ok: true}, nil
 }

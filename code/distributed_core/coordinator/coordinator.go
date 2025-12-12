@@ -72,11 +72,12 @@ func NewCoordinator(vnodes int, N, R, W int, localNodeID string) *Coordinator {
 // Membership
 // ----------------------------------------------------------------------
 
-// RegisterNode ... (keep earlier code above same)
 func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 	c.mu.Lock()
 	c.nodeAddrs[nodeID] = addr
 	c.partitioner.AddNode(hash.NodeID(nodeID))
+	// *** 修改 1: 注册时显式清除 nodeDown 状态，确保 Put 可立即访问 ***
+	delete(c.nodeDown, nodeID)
 	c.mu.Unlock()
 
 	// dial (outside lock)
@@ -116,7 +117,7 @@ func (c *Coordinator) deliverHintsToNode(target string) {
 	}
 
 	// for each node, call FetchHints(target)
-	for nid, cli := range clients {
+	for _, cli := range clients {
 		ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 		batch, err := cli.FetchHints(ctx, &pb.FetchHintsRequest{TargetNode: target})
 		cancel()
@@ -202,11 +203,11 @@ func (c *Coordinator) healthChecker() {
 					continue // still down
 				}
 
-				// *** 修改：成功重连后 mark UP ***
+				// *** 修改 2: 成功重连后 mark UP，并清理 nodeDown ***
 				c.mu.Lock()
 				c.conns[nid] = conn
 				c.clients[nid] = pb.NewDynamoRPCClient(conn)
-				// c.partitioner.AddNode(hash.NodeID(nid))
+				delete(c.nodeDown, nid) // <--- 重要：从 down 列表中移除
 				c.mu.Unlock()
 
 				continue
@@ -375,12 +376,18 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 				// fallback sloppy quorum
 				fallbackDone := false
 				for _, cand := range preference {
-					usedMu.Lock()
-					_, wasUsed := used[cand]
-					usedMu.Unlock()
-					if wasUsed || cand == node {
+					// *** 修改 3: 放宽 Fallback 选择条件 ***
+
+					// 仅跳过当前正在报错的故障节点
+					if cand == node {
 						continue
 					}
+
+					// 注意：这里删除了 `if wasUsed { continue }` 的检查。
+					// 在 N=ClusterSize 的小集群中，所有健康节点都在 "intended" 列表中
+					// 并且可能已经（或正在）作为主节点处理请求。
+					// 我们必须允许这些节点同时也存储 Hint，否则在全员 Primary 的情况下无处可存。
+					// 存储层通常会将 IsHint=true 的请求存在独立区域，不会覆盖主数据。
 
 					hreq := &pb.InternalPutRequest{
 						Key:          key,
@@ -427,6 +434,7 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 	for e := range errCh {
 		last = e
 	}
+	// 注意：如果有 fallback 成功，errCh 可能包含部分失败信息，但如果达到 W，上面已经 return nil 了
 	return fmt.Errorf("write quorum failed: %d/%d last=%v", success, c.W, last)
 }
 
