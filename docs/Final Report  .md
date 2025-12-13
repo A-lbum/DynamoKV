@@ -32,6 +32,8 @@ The partitioner will determine the which  N nodes to send replications.
 
 Read operations (R) and write operations (W) must be confirmed by at least R and W nodes among the N replicas to be successful. This make the system can continue to operate even when some nodes go down.  If a replica node is unreachable, the coordinator **stores the write locally as a “hint”**, together with metadata indicating which node should eventually receive it. Later, when the failed replica recovers and becomes reachable again, the node holding the hint forwards the stored write to the recovered replica, completing the handoff.  These mechanisms supports eventual consistency and avoid the system blocking on a failures.
 
+#### c.
+
 ### The Gossip Moudle
 
 The gossip module maintains a decentralized and continuously updated view of cluster membership. Each node **periodically exchanges membership information with a small subset of other nodes**, allowing changes such as  dynamical node joins, leaves, and failures to propagate gradually throughout the system.
@@ -119,14 +121,16 @@ c.handoff.StoreHint(node, &pb.Hint{
 })
 ```
 
-The above two mechanism may lead to **multiple version** of same key on different replicas, so we need a **vector clock** to judge the relationship between different versions:
+#### d. **Conflict detection and resolution**
+
+**Concurrent read and write operation** and the above two mechanism may lead to **multiple version** of same key on different replicas, so we need a **vector clock** to judge the relationship between different versions and then merge the correct version into all replicas:
 
 ```Go
 func CompareVC(a, b *pb.VectorClock) int {
 func MergeVC(clocks ...*pb.VectorClock) *pb.VectorClock {
 ```
 
-#### d. gRPC communication framework
+#### e. gRPC communication framework
 
 Finally, with gRPC framework handling network transmission, serialization, and invocation mechanisms, we can  combine all the things above together to get a distributed key-value storage system. 
 
@@ -140,9 +144,26 @@ service DynamoRPC {
 }
 ```
 
-### 3.3 Deployment on the cloud
+## 4. Evaluatoin through testing experiments 
 
-## 4. Evaluatoin through testing experiments
+```
+--- PASS: TestDynamicJoinAndLeave (1.22s)
+--- PASS: TestHintedHandoffAndRecovery (0.41s)
+--- PASS: TestGetReplicaSelectionDeterminism (0.00s)
+--- PASS: TestPutGetAndHinting (0.06s)
+--- PASS: TestPartitionerBasic (0.00s)
+--- PASS: TestDeterminism (0.00s)
+--- PASS: TestDistribution (0.01s)
+--- PASS: TestMinimalMovement (0.00s)
+--- PASS: TestRemoveNode (0.00s)
+--- PASS: TestReplicaUniqueness (0.00s)
+--- PASS: TestRingOrdering (0.00s)
+--- PASS: TestReplicaOverflow (0.00s)
+--- PASS: TestInternalPutMultipleVersions (0.00s)
+--- PASS: TestInternalPutHintedHandoff (0.00s)
+--- PASS: TestSendHintsAndPushGossip (0.00s)
+--- PASS: TestMergeVersionedValues_DominatedAndConcu
+```
 
 
 
