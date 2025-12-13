@@ -10,14 +10,6 @@ import (
 	"github.com/llllleeeewwwiis/distributed_core/node"
 )
 
-func mustGetenv(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		log.Fatalf("missing required env %s", key)
-	}
-	return v
-}
-
 func main() {
 	// ------------------------------------------------------------
 	// 1. Read config from env (container-friendly)
