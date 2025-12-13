@@ -277,7 +277,6 @@ func (c *Coordinator) getClient(node string) pb.DynamoRPCClient {
 }
 
 func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) error {
-	fmt.Printf("[COORD] InternalPut sending to %s (down=%v)\n", node, down)
 	c.mu.RLock()
 	down := c.nodeDown[node]
 	c.mu.RUnlock()
