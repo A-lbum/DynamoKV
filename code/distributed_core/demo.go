@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"time"
 
@@ -12,123 +13,238 @@ import (
 	"google.golang.org/grpc"
 )
 
-// ---------------- Helper ----------------
-func mustDial(addr string) pb.DynamoRPCClient {
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
-	if err != nil {
-		panic(fmt.Sprintf("dial %s failed: %v", addr, err))
-	}
-	return pb.NewDynamoRPCClient(conn)
+/*
+========================================================
+ Demo Node abstraction (in-process)
+========================================================
+*/
+
+type demoNode struct {
+	id      string
+	addr    string
+	lis     net.Listener
+	grpcSrv *grpc.Server
+	storage *node.MemoryStorage
 }
 
-func startNode(nodeID string) (addr string, stop func(), storage *node.MemoryStorage) {
+func startNode(id string) *demoNode {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		panic(err)
+		log.Fatalf("listen failed: %v", err)
 	}
-	addr = lis.Addr().String()
-	storage = node.NewMemoryStorage()
-	srv := node.NewNodeServer(storage)
-	grpcServer := grpc.NewServer()
-	pb.RegisterDynamoRPCServer(grpcServer, srv)
-	go grpcServer.Serve(lis)
-	stop = func() {
-		grpcServer.Stop()
-		lis.Close()
+
+	st := node.NewMemoryStorage()
+	srv := grpc.NewServer()
+	pb.RegisterDynamoRPCServer(srv, node.NewNodeServer(st))
+
+	n := &demoNode{
+		id:      id,
+		addr:    lis.Addr().String(),
+		lis:     lis,
+		grpcSrv: srv,
+		storage: st,
 	}
-	fmt.Printf("Node %s started at %s\n", nodeID, addr)
-	return
+
+	go func() {
+		if err := srv.Serve(lis); err != nil {
+			log.Printf("[NODE %s] stopped: %v", id, err)
+		}
+	}()
+
+	log.Printf("[NODE %s] started at %s", id, n.addr)
+	return n
 }
 
-// ---------------- Main ----------------
-func main() {
-	fmt.Println("=== DEMO START ===")
-
-	// 1. 启动 coordinator
-	c := coordinator.NewCoordinator(100, 3, 2, 2, "coord-demo")
-	defer c.Close()
-	fmt.Println("Coordinator started")
-
-	// 2. 启动初始节点 n1,n2,n3
-	addr1, stop1, _ := startNode("n1")
-	addr2, stop2, _ := startNode("n2")
-	addr3, stop3, _ := startNode("n3")
-	defer stop1()
-	defer stop2()
-	defer stop3()
-
-	// 注册节点
-	c.RegisterNode("n1", addr1)
-	c.RegisterNode("n2", addr2)
-	c.RegisterNode("n3", addr3)
-
-	// 3. Put/Get 基础演示
-	key := []byte("demo-key")
-	val := []byte("v1")
-	fmt.Printf("\nPUT %s -> %s\n", key, val)
-	if err := c.Put(key, val); err != nil {
-		panic(err)
+func stopNode(n *demoNode) {
+	if n == nil {
+		return
 	}
-	time.Sleep(200 * time.Millisecond)
+	log.Printf("[NODE %s] stopping", n.id)
+	n.grpcSrv.Stop()
+	_ = n.lis.Close()
+}
 
-	client2 := mustDial(addr2)
+/*
+========================================================
+ Helper: read value via RPC
+========================================================
+*/
+
+func readFromNode(n *demoNode, key string) {
+	conn, err := grpc.Dial(n.addr, grpc.WithInsecure())
+	if err != nil {
+		log.Printf("[READ %s] dial failed: %v", n.id, err)
+		return
+	}
+	defer conn.Close()
+
+	cli := pb.NewDynamoRPCClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	resp, _ := client2.InternalGet(ctx, &pb.InternalGetRequest{Key: key})
-	for _, v := range resp.Versions {
-		fmt.Printf("Node-2 value: %s\n", string(v.Value))
+
+	resp, err := cli.InternalGet(ctx, &pb.InternalGetRequest{Key: []byte(key)})
+	if err != nil || len(resp.Versions) == 0 {
+		log.Printf("[READ %s] key=%s -> <empty>", n.id, key)
+		return
 	}
 
-	// 4. 动态加入节点 n4
-	addr4, stop4, st4 := startNode("n4")
-	defer stop4()
-	c.RegisterNode("n4", addr4)
-	fmt.Println("\nNode n4 joined")
+	log.Printf("[READ %s] key=%s -> %s",
+		n.id, key, string(resp.Versions[0].Value))
+}
+
+func readAllVersionsFromNode(n *demoNode, key string) {
+	conn, err := grpc.Dial(n.addr, grpc.WithInsecure())
+	if err != nil {
+		log.Printf("[READ %s] dial failed: %v", n.id, err)
+		return
+	}
+	defer conn.Close()
+
+	cli := pb.NewDynamoRPCClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	resp, err := cli.InternalGet(ctx, &pb.InternalGetRequest{Key: []byte(key)})
+	if err != nil || len(resp.Versions) == 0 {
+		log.Printf("[READ %s] key=%s -> <empty>", n.id, key)
+		return
+	}
+
+	log.Printf("[READ %s] key=%s versions=%d", n.id, key, len(resp.Versions))
+	for i, v := range resp.Versions {
+		log.Printf(
+			"  version[%d]: value=%s clock=%v",
+			i,
+			string(v.Value),
+			v.Clock,
+		)
+	}
+}
+
+/*
+========================================================
+ DEMO
+========================================================
+*/
+
+func main() {
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
+	fmt.Println("========== DYNAMO FULL DEMO START ==========")
+
+	//--------------------------------------------------
+	// 1. Coordinator
+	//--------------------------------------------------
+	coord := coordinator.NewCoordinator(
+		64,
+		3,
+		2,
+		2,
+		"coord-demo",
+	)
+	defer coord.Close()
+
+	log.Println("[MEMBERSHIP] coordinator started")
+
+	//--------------------------------------------------
+	// 2. Start initial nodes n1,n2,n3
+	//--------------------------------------------------
+	n1 := startNode("n1")
+	n2 := startNode("n2")
+	n3 := startNode("n3")
+
+	coord.RegisterNode("n1", n1.addr)
+	coord.RegisterNode("n2", n2.addr)
+	coord.RegisterNode("n3", n3.addr)
+
+	log.Println("[MEMBERSHIP] n1,n2,n3 registered")
 	time.Sleep(200 * time.Millisecond)
 
-	val2 := []byte("v2-after-join")
-	fmt.Printf("PUT %s -> %s\n", key, val2)
-	c.Put(key, val2)
-	time.Sleep(200 * time.Millisecond)
-	vers4, _ := st4.Get(key)
-	for _, v := range vers4 {
-		fmt.Printf("Node-4 value: %s\n", string(v.Value))
-	}
-
-	// 5. 模拟节点下线 n2
-	stop2()
-	c.UnregisterNode("n2")
-	fmt.Println("\nNode n2 left")
-
-	val3 := []byte("v3-after-leave")
-	fmt.Printf("PUT %s -> %s\n", key, val3)
-	c.Put(key, val3)
+	//--------------------------------------------------
+	// 3. Normal PUT
+	//--------------------------------------------------
+	fmt.Println("\n=== PUT k1 = v1 (all nodes alive) ===")
+	coord.Put([]byte("k1"), []byte("v1"))
 	time.Sleep(200 * time.Millisecond)
 
-	// 查看其他节点接收情况
-	client1 := mustDial(addr1)
-	resp1, _ := client1.InternalGet(ctx, &pb.InternalGetRequest{Key: key})
-	for _, v := range resp1.Versions {
-		fmt.Printf("Node-1 value: %s\n", string(v.Value))
-	}
-	vers4, _ = st4.Get(key)
-	for _, v := range vers4 {
-		fmt.Printf("Node-4 value: %s\n", string(v.Value))
-	}
+	readFromNode(n1, "k1")
+	readFromNode(n2, "k1")
+	readFromNode(n3, "k1")
 
-	// 6. 节点恢复 n2
-	addr2b, stop2b, st2b := startNode("n2")
-	defer stop2b()
-	c.RegisterNode("n2", addr2b)
-	fmt.Println("\nNode n2 recovered")
+	//--------------------------------------------------
+	// 4. Node join (n4)
+	//--------------------------------------------------
+	fmt.Println("\n=== NODE n4 JOIN ===")
+	n4 := startNode("n4")
+	coord.RegisterNode("n4", n4.addr)
+	log.Println("[MEMBERSHIP] n4 registered")
+	time.Sleep(200 * time.Millisecond)
 
-	// Flush hints
-	c.FlushHints()
-	time.Sleep(400 * time.Millisecond)
-	vers2b, _ := st2b.Get(key)
-	for _, v := range vers2b {
-		fmt.Printf("Node-2 (recovered) value: %s\n", string(v.Value))
-	}
+	fmt.Println("\n=== PUT k1 = v2-after-join ===")
+	coord.Put([]byte("k1"), []byte("v2-after-join"))
+	time.Sleep(200 * time.Millisecond)
 
-	fmt.Println("\n=== DEMO END ===")
+	readFromNode(n4, "k1")
+
+	//--------------------------------------------------
+	// 5. Node failure (n2 DOWN)
+	//--------------------------------------------------
+	fmt.Println("\n=== NODE n2 DOWN ===")
+	stopNode(n2)
+	coord.UnregisterNode("n2")
+	log.Println("[MEMBERSHIP] n2 unregistered")
+	time.Sleep(200 * time.Millisecond)
+
+	//--------------------------------------------------
+	// 6. PUT with hinted handoff
+	//--------------------------------------------------
+	fmt.Println("\n=== PUT k1 = v3-with-hint (n2 down) ===")
+	coord.Put([]byte("k1"), []byte("v3-with-hint"))
+	time.Sleep(200 * time.Millisecond)
+
+	readFromNode(n1, "k1")
+	readFromNode(n3, "k1")
+	readFromNode(n4, "k1")
+
+	//--------------------------------------------------
+	// 7. Node recovery (n2)
+	//--------------------------------------------------
+	fmt.Println("\n=== NODE n2 RECOVER ===")
+	n2 = startNode("n2")
+	coord.RegisterNode("n2", n2.addr)
+	log.Println("[MEMBERSHIP] n2 re-registered")
+
+	time.Sleep(1 * time.Second)
+	readFromNode(n2, "k1")
+
+	//--------------------------------------------------
+	// 8. Vector Clock CONCURRENT WRITE DEMO  ★ 新增
+	//--------------------------------------------------
+	fmt.Println("\n=== VECTOR CLOCK CONCURRENT WRITE DEMO ===")
+
+	key := "k-conflict"
+
+	go func() {
+		coord.Put([]byte(key), []byte("v-from-n1"))
+	}()
+
+	go func() {
+		coord.Put([]byte(key), []byte("v-from-n3"))
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+
+	fmt.Println("\n--- READ AFTER CONCURRENT PUT (expect siblings) ---")
+	readAllVersionsFromNode(n1, key)
+
+	fmt.Println("\n--- RESOLVE CONFLICT (PUT merged value) ---")
+	coord.Put([]byte(key), []byte("v-resolved"))
+	time.Sleep(300 * time.Millisecond)
+
+	fmt.Println("\n--- READ AFTER RESOLUTION (single version) ---")
+	readAllVersionsFromNode(n2, key)
+	readAllVersionsFromNode(n3, key)
+	readAllVersionsFromNode(n4, key)
+
+	fmt.Println("\n========== DYNAMO FULL DEMO END ==========")
 }

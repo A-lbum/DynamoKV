@@ -83,6 +83,7 @@ func (c *Coordinator) InitFromSeeds(localNodeID string, seeds []string) {
 // ----------------------------------------------------------------------
 
 func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
+	log.Printf("[MEMBERSHIP][JOIN] node=%s addr=%s", nodeID, addr)
 	c.mu.Lock()
 	c.nodeAddrs[nodeID] = addr
 	c.partitioner.AddNode(hash.NodeID(nodeID))
@@ -103,6 +104,8 @@ func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 	c.clients[nodeID] = pb.NewDynamoRPCClient(conn)
 	c.mu.Unlock()
 
+	log.Printf("[MEMBERSHIP][UP] node=%s", nodeID)
+
 	// After successful registration/dial, attempt to collect hints stored on other nodes for this node
 	go c.deliverHintsToNode(nodeID)
 
@@ -110,6 +113,7 @@ func (c *Coordinator) RegisterNode(nodeID string, addr string) error {
 }
 
 func (c *Coordinator) deliverHintsToNode(target string) {
+	log.Printf("[HINT][REPLAY] start target=%s", target)
 	// gather snapshot of clients
 	c.mu.RLock()
 	clients := make(map[string]pb.DynamoRPCClient)
@@ -150,6 +154,7 @@ func (c *Coordinator) deliverHintsToNode(target string) {
 			continue
 		}
 		// delivered successfully - done for hints from this node (they were already popped on fetch)
+		log.Printf("[HINT][DELIVERED] to=%s count=%d", target, len(batch.Hints))
 	}
 
 	// also attempt to deliver any hints stored in coordinator's own buffer
@@ -157,6 +162,7 @@ func (c *Coordinator) deliverHintsToNode(target string) {
 }
 
 func (c *Coordinator) UnregisterNode(nodeID string) {
+	log.Printf("[MEMBERSHIP][DOWN] node=%s", nodeID)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -277,6 +283,18 @@ func (c *Coordinator) getClient(node string) pb.DynamoRPCClient {
 }
 
 func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) error {
+	kind := "PRIMARY"
+	if req.IsHint {
+		kind = "HINT"
+	}
+
+	log.Printf("[COORD][SEND][%s] to=%s key=%s ts=%d",
+		kind,
+		node,
+		string(req.Key),
+		req.Data.Timestamp,
+	)
+
 	c.mu.RLock()
 	down := c.nodeDown[node]
 	c.mu.RUnlock()
@@ -285,8 +303,8 @@ func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) e
 	}
 
 	client := c.getClient(node)
-	log.Printf("[COORD] Sending InternalPut to %s key=%s isHint=%v ts=%d",
-		node, string(req.Key), req.IsHint, req.Data.Timestamp)
+	// log.Printf("[COORD] Sending InternalPut to %s key=%s isHint=%v ts=%d",
+	// 	node, string(req.Key), req.IsHint, req.Data.Timestamp)
 	if client == nil {
 		return fmt.Errorf("no client for node %s", node)
 	}
@@ -294,9 +312,9 @@ func (c *Coordinator) callInternalPut(node string, req *pb.InternalPutRequest) e
 	defer cancel()
 	_, err := client.InternalPut(ctx, req)
 	if err != nil {
-		log.Printf("[COORD] InternalPut FAIL to %s key=%s err=%v", node, string(req.Key), err)
+		log.Printf("[COORD][FAIL][%s] to=%s key=%s err=%v", kind, node, string(req.Key), err)
 	} else {
-		log.Printf("[COORD] InternalPut OK to %s key=%s", node, string(req.Key))
+		log.Printf("[COORD][ACK][%s] from=%s key=%s", kind, node, string(req.Key))
 	}
 	// if rpc error, consider marking node down (best-effort)
 	if err != nil {
@@ -348,8 +366,9 @@ func (c *Coordinator) getAllCandidates(key []byte) []string {
 // ----------------------------------------------------------------------
 
 func (c *Coordinator) Put(key []byte, value []byte) error {
-	fmt.Printf("[COORD] Put received key=%s\n", string(key))
+	log.Printf("[COORD] Put received key=%s\n", string(key))
 	preference := c.getAllCandidates(key)
+	log.Printf("[COORD][PUT] preference=%v", preference)
 	if len(preference) == 0 {
 		return fmt.Errorf("no nodes available")
 	}
@@ -358,6 +377,7 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 	if len(intended) > c.N {
 		intended = intended[:c.N]
 	}
+	log.Printf("[COORD][PUT] intended=%v (N=%d,W=%d)", intended, c.N, c.W)
 
 	// build versioned value
 	counter := c.incrLocalClock()
@@ -391,6 +411,7 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 			}
 
 			if err := c.callInternalPut(node, req); err != nil {
+				log.Printf("[COORD][FALLBACK] primary=%s failed, try sloppy quorum", node)
 				// fallback sloppy quorum
 				fallbackDone := false
 				for _, cand := range preference {
@@ -414,6 +435,7 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 						OriginalNode: node,
 					}
 					if err2 := c.callInternalPut(cand, hreq); err2 == nil {
+						log.Printf("[HINT][STORE] key=%s target=%s holder=%s", string(key), node, cand)
 						usedMu.Lock()
 						used[cand] = struct{}{}
 						usedMu.Unlock()
@@ -424,6 +446,7 @@ func (c *Coordinator) Put(key []byte, value []byte) error {
 				}
 
 				if !fallbackDone {
+					log.Printf("[HINT][BUFFER] key=%s target=%s stored-in=coordinator", string(key), node)
 					c.handoff.StoreHint(node, &pb.Hint{
 						Key:        key,
 						Data:       vv,
