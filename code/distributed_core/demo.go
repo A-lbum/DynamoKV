@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/llllleeeewwwiis/distributed_core/coordinator"
@@ -123,6 +125,17 @@ func readAllVersionsFromNode(n *demoNode, key string) {
 
 /*
 ========================================================
+ Utility: wait for Enter key
+========================================================
+*/
+
+func waitForEnter() {
+	// fmt.Print("\nPress Enter to continue...")
+	bufio.NewReader(os.Stdin).ReadBytes('\n')
+}
+
+/*
+========================================================
  DEMO
 ========================================================
 */
@@ -143,7 +156,6 @@ func main() {
 		"coord-demo",
 	)
 	defer coord.Close()
-
 	log.Println("[MEMBERSHIP] coordinator started")
 
 	//--------------------------------------------------
@@ -160,78 +172,55 @@ func main() {
 	log.Println("[MEMBERSHIP] n1,n2,n3 registered")
 	time.Sleep(200 * time.Millisecond)
 
-	//--------------------------------------------------
-	// 3. Normal PUT
-	//--------------------------------------------------
-	fmt.Println("\n=== PUT k1 = v1 (all nodes alive) ===")
+	// PART 1: Basic PUT & GET
+	waitForEnter()
+	fmt.Println("\n=== PART 1: Basic PUT & GET (all nodes alive) ===")
 	coord.Put([]byte("k1"), []byte("v1"))
 	time.Sleep(200 * time.Millisecond)
-
 	readFromNode(n1, "k1")
 	readFromNode(n2, "k1")
 	readFromNode(n3, "k1")
 
-	//--------------------------------------------------
-	// 4. Node join (n4)
-	//--------------------------------------------------
-	fmt.Println("\n=== NODE n4 JOIN ===")
+	// PART 2: Node join
+	waitForEnter()
+	fmt.Println("\n=== PART 2: Node n4 joins ===")
 	n4 := startNode("n4")
 	coord.RegisterNode("n4", n4.addr)
 	log.Println("[MEMBERSHIP] n4 registered")
 	time.Sleep(200 * time.Millisecond)
-
-	fmt.Println("\n=== PUT k1 = v2-after-join ===")
 	coord.Put([]byte("k1"), []byte("v2-after-join"))
 	time.Sleep(200 * time.Millisecond)
-
 	readFromNode(n4, "k1")
 
-	//--------------------------------------------------
-	// 5. Node failure (n2 DOWN)
-	//--------------------------------------------------
-	fmt.Println("\n=== NODE n2 DOWN ===")
+	// PART 3: Node failure & hinted handoff
+	waitForEnter()
+	fmt.Println("\n=== PART 3: Node n2 down & PUT with hinted handoff ===")
 	stopNode(n2)
 	coord.UnregisterNode("n2")
 	log.Println("[MEMBERSHIP] n2 unregistered")
 	time.Sleep(200 * time.Millisecond)
 
-	//--------------------------------------------------
-	// 6. PUT with hinted handoff
-	//--------------------------------------------------
-	fmt.Println("\n=== PUT k1 = v3-with-hint (n2 down) ===")
 	coord.Put([]byte("k1"), []byte("v3-with-hint"))
 	time.Sleep(200 * time.Millisecond)
-
 	readFromNode(n1, "k1")
 	readFromNode(n3, "k1")
 	readFromNode(n4, "k1")
 
-	//--------------------------------------------------
-	// 7. Node recovery (n2)
-	//--------------------------------------------------
-	fmt.Println("\n=== NODE n2 RECOVER ===")
+	// PART 4: Node recovery
+	waitForEnter()
+	fmt.Println("\n=== PART 4: Node n2 recovers ===")
 	n2 = startNode("n2")
 	coord.RegisterNode("n2", n2.addr)
 	log.Println("[MEMBERSHIP] n2 re-registered")
-
 	time.Sleep(1 * time.Second)
 	readFromNode(n2, "k1")
 
-	//--------------------------------------------------
-	// 8. Vector Clock CONCURRENT WRITE DEMO  ★ 新增
-	//--------------------------------------------------
-	fmt.Println("\n=== VECTOR CLOCK CONCURRENT WRITE DEMO ===")
-
+	// PART 5: Vector Clock concurrent writes & conflict resolution
+	waitForEnter()
+	fmt.Println("\n=== PART 5: Vector Clock concurrent writes & conflict resolution ===")
 	key := "k-conflict"
-
-	go func() {
-		coord.Put([]byte(key), []byte("v-from-n1"))
-	}()
-
-	go func() {
-		coord.Put([]byte(key), []byte("v-from-n3"))
-	}()
-
+	go func() { coord.Put([]byte(key), []byte("v-from-n1")) }()
+	go func() { coord.Put([]byte(key), []byte("v-from-n3")) }()
 	time.Sleep(500 * time.Millisecond)
 
 	fmt.Println("\n--- READ AFTER CONCURRENT PUT (expect siblings) ---")
