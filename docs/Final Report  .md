@@ -4,9 +4,9 @@
 >
 > Yuxuan Liu 123090377@link.cuhk.edu.cn
 
-##### Demo video link:
+##### Demo video link: [Demo Video](https://www.bilibili.com/video/BV1z5mvB2EGh/?spm_id_from=333.1387.list.card_archive.click&vd_source=2c548de46de64efbaea8a76009b6e42a)
 
-##### Source code: 
+##### Source code: [DynamoKV](https://github.com/A-lbum/DynamoKV)
 
 ------
 
@@ -20,9 +20,9 @@ Motivated by these insights, we aims to build a system prototype that captures t
 
 For an arbitrary sample request ,the system work as follows:
 
-<img src="../images/fw_w.jpg" style="zoom: 33%;" />
+<img src="../images/fw_w.jpg" style="zoom: 31%;" />
 
-### Decentralized Structure
+### 2.1 Decentralized Structure
 
 When the client asks a request, the API sever will reseive it and send it to **one of the nodes in the decentralized cluster**. We ensure all nodes in the cluster are **functionally equivalent** and all have storage capacity, coordination capacity. Thus, any node that receives the request from the client can serve as a temporary "coordinator". If any node goes down, other nodes can immediately take over its coordinating role, this ensures a high availability and fault tolerance. The current "coordinator" node handle the following tasks:
 
@@ -38,7 +38,7 @@ Read operations (R) and write operations (W) must be confirmed by at least R and
 
 Each write is tagged with a **vector clock** to track causal history. When multiple versions exist, the system uses vector clocks to detect **concurrent updates**. Versions that are causally dominated are discarded, while concurrent versions are kept as **siblings**. Clients can then resolve conflicts and write back a merged value. This mechanism ensures **eventual consistency** while allowing concurrent writes without data loss.
 
-### The Gossip Moudle
+### 2.2 The Gossip Moudle
 
 The gossip module maintains a decentralized and continuously updated view of cluster membership. Each node **periodically exchanges membership information with a small subset of other nodes**, allowing changes such as  dynamical node joins, leaves, and failures to propagate gradually throughout the system.
 
@@ -78,32 +78,18 @@ type Partitioner struct {
 }
 ```
 
-#### b. Communiaction Protocol for Metadata
+#### b. Communication Protocol for Metadata
 
-To maintain the decentralized system, all nodes must rely on a communication protocol to exchange metadata without a central controller.  We choose a **Gossip-based communication protocol** since it provides a scalable and fault-tolerant mechanism for disseminating membership information, allowing nodes to gradually converge to a consistent view of the cluster through peer-to-peer exchanges. 
+To maintain a fully decentralized architecture, nodes exchange metadata using a **gossip-based communication protocol**, avoiding any centralized membership service. Gossip provides scalable and fault-tolerant dissemination, allowing nodes to gradually converge to a consistent view of the cluster through periodic peer-to-peer exchanges.
+
+Each node exposes a gossip endpoint for pushing and receiving cluster state:
 
 ```go
-func (s *NodeServer) PushGossip(ctx context.Context, st *pb.GossipState) (*pb.GossipResponse, error) {}
+func (s *NodeServer) PushGossip(ctx context.Context, st *pb.GossipState)
+(*pb.GossipResponse, error) {}
 ```
 
-The following is the **Metadata Sync** we defined for Gossip:
-
-```protobuf
-message NodeState {
-    string node = 1;
-    bool alive = 2;
-    int64 heartbeat = 3;
-}
-message GossipState {
-    repeated NodeState nodes = 1;
-}
-message GossipResponse {
-    bool ok = 1;
-}
-```
-
-- The heartbeat and alive fields allow nodes to detect whether a peer has joined, left, or failed.
-- The repeated NodeState field enables batch synchronization of the states of all nodes in the cluster.
+Gossip messages carry lightweight node state metadata, including node identity, liveness information, and a monotonically increasing heartbeat. By comparing heartbeats and liveness flags, nodes can detect joins, failures, and recoveries. Batched state exchange enables efficient synchronization of membership information even under partial failures or network delays.
 
 #### c. Fault Tolerance
 
@@ -154,7 +140,7 @@ In production environments, distributed storage systems are typically deployed o
 
 ## 4. Evaluation
 
-### **5.1 Component-level Unit Tests**
+### **4.1 Component-level Unit Tests**
 
 We implemented a comprehensive suite of unit tests to validate the correctness of core components in isolation. These tests focus on deterministic behavior, fault handling, and correctness of internal mechanisms. All unit tests pass successfully, providing strong evidence that individual components behave correctly and deterministically under expected conditions. For the test details, you can refer to the `_test.go` files under the directory `path/to/source/code/distributed_core`.
 
@@ -166,7 +152,7 @@ We implemented a comprehensive suite of unit tests to validate the correctness o
 
 **Versioning and Conflict Handling.** `TestInternalPutMultipleVersions` and `TestMergeVersionedValues_DominatedAndConcu` validate vector clock comparison, concurrent version preservation, and dominated-version elimination.
 
-### **5.2 End-to-End System Experiments**
+### **4.2 End-to-End System Experiments**
 
 To evaluate system-level behavior, we conducted an end-to-end demo using multiple in-process nodes coordinated via RPC. The demo consists of five scenarios, each designed to exercise a key Dynamo-style mechanism. For the experiment details, you can refer to our demo video and `demo.go` under the directory `path/to/source/code/distributed_core`.
 
