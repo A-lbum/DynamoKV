@@ -24,7 +24,7 @@ For an arbitrary sample request ,the system work as follows:
 
 ### 2.1 Decentralized Structure
 
-When the client asks a request, the API sever will reseive it and send it to **one of the nodes in the decentralized cluster**. We ensure all nodes in the cluster are **functionally equivalent** and all have storage capacity, coordination capacity. Thus, any node that receives the request from the client can serve as a temporary "coordinator". If any node goes down, other nodes can immediately take over its coordinating role, this ensures a high availability and fault tolerance. The current "coordinator" node handle the following tasks:
+When the client asks a request, the API sever will reseive it and send it to **one of the nodes in the decentralized cluster**. We ensure all nodes in the cluster are **functionally equivalent** and all have storage capacity, coordination capacity. Thus, any node  receives the request  can serve as a temporary "coordinator". If any node goes down, other nodes can immediately take over its coordinating role, this ensures a high availability and fault tolerance. The current "coordinator" node handle the following tasks:
 
 #### a. Partitioner 
 
@@ -32,7 +32,7 @@ The partitioner will determine the which N nodes to send replications with **con
 
 #### b. Quorum(R/W) and Hinted Handoff
 
-Read operations (R) and write operations (W) must be confirmed by at least R and W nodes among the N replicas to be successful. This make the system can continue to operate even when some nodes go down.  If a replica node is unreachable, the coordinator **stores the write locally as a “hint”**, together with metadata indicating which node should eventually receive it. Later, when the failed replica recovers and becomes reachable again, the node holding the hint forwards the stored write to the recovered replica, completing the handoff.  These mechanisms supports eventual consistency and avoid the system blocking on a failures.
+Read operations (R) and write operations (W) must be confirmed by at least R and W nodes among the N replicas to be successful. This make the system can continue to operate even when some nodes go down.  If a replica node is unreachable, the coordinator **stores the write locally as a “hint”**, together with metadata indicating which node should eventually receive it. Later, when the failed replica recovers, the node holding the hint forwards the stored write to the recovered replica, completing the handoff.  These mechanisms supports eventual consistency and avoid the system blocking on a failures.
 
 #### c. Vector Clocks and Conflict Resolution
 
