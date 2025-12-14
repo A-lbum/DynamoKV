@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  node:
+    build:
+      context: .
+      dockerfile: distributed.Dockerfile
+    image: dynamo-node:latest
+    environment:
+      BIND: ":8080"
+      NODE_SEEDS: "node@node:8080"
+    networks:
+      - dynamo-net
+    deploy:
+      replicas: 1
+    ports:
+      - "8080"
+
+networks:
+  dynamo-net:
+    driver: bridge
