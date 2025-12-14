@@ -20,7 +20,7 @@ Motivated by these insights, we aims to build a system prototype that captures t
 
 For an arbitrary sample request ,the system work as follows:
 
-<img src="../images/fw_w.jpg" style="zoom: 31%;" />
+<img src="../images/framework.jpg" style="zoom: 31%;" />
 
 ### 2.1 Decentralized Structure
 
@@ -155,6 +155,16 @@ We implemented a comprehensive suite of unit tests to validate the correctness o
 ### **4.2 End-to-End System Experiments**
 
 To evaluate system-level behavior, we conducted an end-to-end demo using multiple in-process nodes coordinated via RPC. The demo consists of five scenarios, each designed to exercise a key Dynamo-style mechanism. For the experiment details, you can refer to our demo video and `demo.go` under the directory `path/to/source/code/distributed_core`.
+
+**Basic Replication and Quorum.** We first initialize 3 nodes `n1`, `n2`, `n3`. With three nodes alive, a `PUT` operation (k1 = v1) is replicated to the preferred replica set (N=3, W=2). Readsfrom all nodes return the same value, confirming correct quorum writes and consistent reads.
+
+**Dynamic Node join.** After node `n4` joins, the coordinator updates the replica set, A subsequent `PUT` writes data to the new nodeand reads from n4 return the latest value, demonstrating seamless membership changes.
+
+**Node Failure and Hinted Handoff. ** When node `n2` fails, writes targeting it trigger hinted handoff. The system continues to accept writes using asloppy quorum, and hints are stored on healthy nodes, ensuring availability despite failures.
+
+**Node Recovery.** Upon recovery of `n2`, stored hints are replayed automatically. A read from `n2` returns the latest valueshowing that the system restores replica consistency without manual intervention.
+
+**Concurrent Writes and conflict Resolution.** Two concurrent PUTs to the same key generate multiple versions tracked by vector clocks. After resolvingthe conflict and writing a merged value, all replicas converge to a single version, demonstrating correcthandling of concurrent updates and eventual consistency.
 
 ## References
 
