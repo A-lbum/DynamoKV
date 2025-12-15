@@ -20,7 +20,7 @@ Motivated by these insights, we aims to build a system prototype that captures t
 
 For an arbitrary sample request ,the system work as follows:
 
-<img src="../images/framework.jpg" style="zoom: 31%;" />
+<img src="images/framework.jpg" style="zoom: 31%;" />
 
 ### 2.1 Decentralized Structure
 
